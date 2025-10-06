@@ -1,0 +1,52 @@
+{
+  "$id": "https://example.com/agent-builder/byoe.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BYOE Agent",
+  "type": "object",
+  "properties": {
+    "contractVersion": { "type": "string" },
+    "routing": {
+      "type": "object",
+      "properties": {
+        "selector": { "enum": ["topic", "header"] },
+        "commandsTopic": { "type": "string" },
+        "headerKey": { "type": "string" },
+        "headerValue": { "type": "string" }
+      },
+      "required": ["selector"]
+    },
+    "topics": {
+      "type": "object",
+      "properties": {
+        "events": { "type": "string" },
+        "tokens": { "type": "string" },
+        "toolsReq": { "type": "string" },
+        "toolsRes": { "type": "string" },
+        "dlq": { "type": "string" }
+      },
+      "required": ["events", "tokens", "toolsReq", "toolsRes"]
+    },
+    "consumerGroup": { "type": "string" },
+    "encryption": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "jwkId": { "type": "string" }
+      },
+      "required": ["enabled"]
+    },
+    "allowToolRouter": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "routing": { "properties": { "selector": { "const": "topic" } } } } },
+      "then": { "properties": { "routing": { "required": ["commandsTopic"] } } }
+    },
+    {
+      "if": { "properties": { "routing": { "properties": { "selector": { "const": "header" } } } } },
+      "then": { "properties": { "routing": { "required": ["headerKey", "headerValue"] } } }
+    }
+  ],
+  "required": ["contractVersion", "routing", "topics", "consumerGroup", "encryption"]
+}
+

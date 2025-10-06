@@ -1,0 +1,40 @@
+{
+  "$id": "https://example.com/agent-builder/a2a.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Remote Agent (A2A)",
+  "type": "object",
+  "properties": {
+    "protocol": { "enum": ["https", "grpc", "mcp"] },
+    "endpoint": { "type": "string", "minLength": 1 },
+    "method": { "type": "string" },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["OBO", "client_credentials", "api_key", "mtls"] },
+        "scopes": { "type": "array", "items": { "type": "string" } },
+        "header": { "type": "string" },
+        "secretRef": { "type": "string" }
+      },
+      "required": ["type"]
+    },
+    "timeoutMs": { "type": "number", "minimum": 0 },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "maxAttempts": { "type": "number", "minimum": 0 },
+        "backoff": { "enum": ["none", "linear", "exponential"] },
+        "initialDelayMs": { "type": "number", "minimum": 0 }
+      }
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "requestTemplate": { "type": "string" },
+    "responsePointer": { "type": "string", "minLength": 1 },
+    "confidencePointer": { "type": "string" },
+    "streaming": { "type": "boolean" }
+  },
+  "required": ["protocol", "endpoint", "auth", "responsePointer"]
+}
+
