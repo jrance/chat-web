@@ -4,10 +4,12 @@ import { useAgentBuilder } from "../store/AgentBuilderContext";
 import { IRGraph } from "../model/ir";
 import { download, parseIR, saveToLocalStorage, serializeIR } from "../utils/exportImport";
 import { useValidation } from "../hooks/useValidation";
+import { useCompile } from "../hooks/useCompile";
 
 export function TopBar(): JSX.Element {
   const { state, dispatch } = useAgentBuilder();
   const { validateIR, computeIssues } = useValidation();
+  const { runCompile, loading: compiling, error: compileError, result: compileResult } = useCompile();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const onNew = () => {
@@ -41,7 +43,27 @@ export function TopBar(): JSX.Element {
 
   const onValidate = () => validateIR(state.ir);
 
+  const onCompile = async () => {
+    try {
+      await runCompile(state.ir);
+    } catch {
+      // error state handled via compileError
+    }
+  };
+
   const onTidy = () => dispatch({ type: "TIDY" });
+  const onTest = () => {
+    // Find currently selected agent or first codeless agent
+    const selectedId = state.selectedNodeId;
+    const isAgentSelected = selectedId && state.ir.nodes.find((n) => n.id === selectedId && n.kind === "agent.codeless");
+    const target = (isAgentSelected ? selectedId : state.ir.nodes.find((n) => n.kind === "agent.codeless")?.id) as string | undefined;
+    if (target) {
+      // Focus that node and open its Test tab
+      if (state.selectedNodeId !== target) dispatch({ type: "SELECT_NODE", id: target });
+      // fire-and-forget marker read by inspector to switch tabs
+      (dispatch as any)({ type: "OPEN_TEST", nodeId: target });
+    }
+  };
 
   return (
     <div className="ab-topbar" role="toolbar" aria-label="Agent Builder toolbar">
@@ -52,9 +74,21 @@ export function TopBar(): JSX.Element {
         <button className="ab-btn ab-btn--outline" onClick={onImport}>Import JSON</button>
       </div>
       <span className="ab-topbar__spacer" />
-      <div className="ab-group">
+      <div className="ab-group" style={{ alignItems: "center", display: "flex", gap: 8 }}>
         <button className="ab-btn ab-btn--primary" onClick={onValidate}>Validate</button>
+        <button className="ab-btn ab-btn--primary" onClick={onCompile} disabled={compiling}>
+          {compiling ? "Compiling…" : "Compile"}
+        </button>
+        {compileResult && (
+          <span aria-live="polite" style={{ color: "#2e7d32", fontSize: 12 }}>
+            Compiled ✓{compileResult.orchestration ? ` (${compileResult.orchestration})` : ""}
+          </span>
+        )}
+        {compileError && (
+          <span aria-live="assertive" style={{ color: "#c62828", fontSize: 12 }}>Compile failed: {compileError}</span>
+        )}
         <button className="ab-btn ab-btn--secondary" onClick={onTidy}>Tidy layout</button>
+        <button className="ab-btn ab-btn--outline" onClick={onTest}>Test</button>
         <label className="ab-topbar__toggle">
           <input
             type="checkbox"

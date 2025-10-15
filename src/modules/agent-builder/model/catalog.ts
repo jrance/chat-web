@@ -51,6 +51,7 @@ export const SAMPLE_TENANT_CATALOG: ToolDefinition[] = [
     auth: { type: "OBO" },
     status: "active",
     parameters: [
+      { name: "query", type: "string", description: "Search query", scope: "AgentOverride", default: "" },
       { name: "indexName", type: "string", default: "policy-kb", description: "Search index to query", scope: "AgentOverride" },
       { name: "topK", type: "number", default: 5, min: 1, max: 50, scope: "AgentOverride" },
       { name: "region", type: "enum", enum: ["us", "eu"], default: "us", scope: "OrgLocked" },

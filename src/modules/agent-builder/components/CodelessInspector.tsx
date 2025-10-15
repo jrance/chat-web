@@ -4,6 +4,9 @@ import { useValidation } from "../hooks/useValidation";
 import AutoTextarea from "./AutoTextarea";
 import { useToolsCatalog } from "../hooks/useToolsCatalog";
 import { useTool } from "../hooks/useTool";
+import { fetchModels, fetchProviders } from "../config/modelRegistry";
+import { v4 as uuidv4 } from "uuid";
+import TestChatPanel from "./TestChatPanel";
 
 export default function CodelessInspector({ nodeId }: { nodeId: string }) {
   const { state, dispatch } = useAgentBuilder();
@@ -11,12 +14,24 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
   const node = state.ir.nodes.find((n) => n.id === nodeId && n.kind === "agent.codeless") as any;
   const [tab, setTab] = useState<"Basics" | "Instructions" | "Model" | "Context" | "Tools" | "Structured" | "Safety" | "Telemetry" | "Validation">("Basics");
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const [paramDrawer, setParamDrawer] = useState<{ open: boolean; toolId?: string }>({ open: false });
+  // bindings/param drawer removed
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogSelectedId, setCatalogSelectedId] = useState<string | undefined>(undefined);
   const { items: catalogAll } = useToolsCatalog();
   const { items: catalogFiltered } = useToolsCatalog(catalogQuery ? { search: catalogQuery } : undefined);
+  const [providers, setProviders] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  
+  // Load providers once
+  useMemo(() => {
+    fetchProviders().then(setProviders).catch(() => setProviders(["openai", "azureopenai", "bedrock", "ollama", "gemini", "other"]));
+  }, []);
+  // Load models for current provider
+  useMemo(() => {
+    const p = node?.data?.model?.provider || "openai";
+    fetchModels(p).then(setModels).catch(() => setModels([]));
+  }, [node?.data?.model?.provider]);
   if (!node) return null;
 
   const issues = computeIssues(state.ir).filter((i) => i.path.includes(`/nodes/${nodeId}`));
@@ -51,6 +66,9 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
 
   return (
     <div>
+      <div className="ab-inspector__section">
+        <TestChatPanel autoFocus={state.openTestForNodeId === nodeId} />
+      </div>
       <div className="ab-tabs" role="tablist" aria-label="Codeless agent inspector tabs">
         {(["Basics", "Instructions", "Model", "Context", "Tools", "Structured", "Safety", "Telemetry", "Validation"] as const).map((t) => (
           <button key={t} className={`ab-tab ${tab === t ? "ab-tab--active" : ""}`} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>{t}</button>
@@ -97,13 +115,16 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
           <h3>Model / Inference</h3>
           <label className="ab-field ab-field--stack"><span>Provider</span>
             <select value={node.data.model?.provider || "openai"} onChange={(e) => update({ model: { ...node.data.model, provider: e.target.value } })}>
-              {(["openai", "azureopenai", "bedrock", "ollama", "other"] as const).map((p) => <option key={p} value={p}>{p}</option>)}
+              {(providers.length > 0 ? providers : ["openai", "azureopenai", "bedrock", "ollama", "gemini", "other"]).map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
             <div className="ab-help">Choose a model provider; runtime must support it.</div>
           </label>
           <label className="ab-field ab-field--stack"><span>Model ID</span>
-            <input value={node.data.model?.modelId || ""} onChange={(e) => update({ model: { ...node.data.model, modelId: e.target.value } })} />
-            <div className="ab-help">Exact model name, e.g., gpt-4o, llama3:instruct.</div>
+            <select value={node.data.model?.modelId || ""} onChange={(e) => update({ model: { ...node.data.model, modelId: e.target.value } })}>
+              <option value="">Select a model</option>
+              {models.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <div className="ab-help">Select a model for the chosen provider.</div>
           </label>
           <label className="ab-field ab-field--stack"><span>Temperature</span>
             <input type="number" step={0.01} min={0} max={2} value={node.data.model?.temperature ?? 0.3} onChange={(e) => update({ model: { ...node.data.model, temperature: Number(e.target.value) } })} />
@@ -189,6 +210,8 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
         </div>
       )}
 
+      {/* Test chat is always visible above; no tab needed */}
+
       {tab === "Tools" && (
         <div className="ab-inspector__section">
           <h3>Tools</h3>
@@ -207,6 +230,63 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
                 Show tool nodes on canvas
               </label>
               <button className="ab-btn ab-btn--secondary" onClick={() => setCatalogOpen(true)}>Add from Catalog</button>
+            </div>
+          </div>
+          {/* Agent-level tool settings (stacked controls) */}
+          <div>
+            <h4 style={{ margin: "0.5rem 0" }}>Agent Tool Settings</h4>
+            <label className="ab-field ab-field--stack"><span>Policy</span>
+              <select
+                value={node.data.tools?.policy || "Disabled"}
+                onChange={(e) => update({ tools: { ...(node.data.tools || {}), policy: e.target.value } })}
+              >
+                <option>Disabled</option>
+                <option>Auto</option>
+                <option>AlwaysAsk</option>
+                <option>Heuristic</option>
+              </select>
+              <div className="ab-help">Default decisioning for tool use.</div>
+            </label>
+            <label className="ab-field ab-field--stack"><span>Timeout (ms)</span>
+              <input
+                type="number"
+                min={0}
+                value={node.data.tools?.timeoutMs ?? 10000}
+                onChange={(e) => update({ tools: { ...(node.data.tools || {}), timeoutMs: Number(e.target.value) } })}
+              />
+              <div className="ab-help">Per-call default timeout.</div>
+            </label>
+            <label className="ab-field ab-field--stack"><span>Max Calls</span>
+              <input
+                type="number"
+                min={0}
+                value={node.data.tools?.maxCallsPerTurn ?? 0}
+                onChange={(e) => update({ tools: { ...(node.data.tools || {}), maxCallsPerTurn: Number(e.target.value) } })}
+              />
+              <div className="ab-help">Max tool calls per turn.</div>
+            </label>
+            <label className="ab-field ab-field--stack"><span>Parallelism</span>
+              <input
+                type="number"
+                min={1}
+                value={node.data.tools?.parallelism ?? 1}
+                onChange={(e) => update({ tools: { ...(node.data.tools || {}), parallelism: Number(e.target.value) } })}
+              />
+              <div className="ab-help">Max concurrent calls.</div>
+            </label>
+            <label className="ab-field ab-field--check"><span>Redact PII</span>
+              <input
+                type="checkbox"
+                checked={node.data.tools?.redactPII ?? true}
+                onChange={(e) => update({ tools: { ...(node.data.tools || {}), redactPII: e.target.checked } })}
+              />
+              <div className="ab-help">Apply PII redaction to tool I/O.</div>
+            </label>
+            <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "flex-end" }}>
+              <button className="ab-btn ab-btn--outline" onClick={() => {
+                const t = node.data.tools || {};
+                update({ tools: { ...t, policy: "Disabled", timeoutMs: 10000, maxCallsPerTurn: 0, parallelism: 1, redactPII: true } });
+              }}>Reset to defaults</button>
             </div>
           </div>
           <div>
@@ -409,6 +489,33 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
               {(node.data.tools?.bindings || []).length === 0 && <li className="ab-inspector__placeholder">No tools attached</li>}
             </ul>
           </div>
+          {/* Connected tool nodes (canvas attachments) */}
+          <div style={{ marginTop: "0.75rem" }}>
+            <h4 style={{ margin: "0.5rem 0" }}>Connected Tool Nodes</h4>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "0.4rem" }}>
+              {((node.data.tools?.attached as string[] | undefined) || []).map((tid: string, idx: number) => {
+                const toolNode = state.ir.nodes.find((n) => n.id === tid && n.kind === "tool") as any;
+                const title = toolNode ? `${toolNode.label} (${toolNode.data?.toolId || "unconfigured"})` : tid;
+                return (
+                  <li key={`${tid}-${idx}`} style={{ border: "1px solid #3f4149", borderRadius: 6, padding: "0.5rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+                      <strong>{title}</strong>
+                      <div style={{ display: "flex", gap: "0.4rem" }}>
+                        <button className="ab-btn ab-btn--outline" onClick={() => {
+                          const newEdges = state.ir.edges.filter((e) => !((e.from === nodeId && e.to === tid) || (e.to === nodeId && e.from === tid)));
+                          const ir = { ...state.ir, edges: newEdges };
+                          dispatch({ type: "SET_GRAPH", ir });
+                        }}>Detach</button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+              {(((node.data.tools?.attached as string[] | undefined) || []).length === 0) && (
+                <li className="ab-inspector__placeholder">No tool nodes connected</li>
+              )}
+            </ul>
+          </div>
 
           {catalogOpen && (
             <div className="ab-modal" role="dialog" aria-modal="true" aria-label="Tenant Tool Catalog" onClick={() => setCatalogOpen(false)}>
@@ -430,7 +537,15 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
                               <td>{t.category}</td>
                               <td>{t.auth?.type}</td>
                               <td>{t.status}</td>
-                              <td><button className="ab-btn ab-btn--primary" onClick={() => { const bindings = [...(node.data.tools?.bindings || [])]; if (!bindings.some((b: any) => b.toolId === t.id)) { bindings.push({ toolId: t.id, version: t.version, policy: "Auto", timeoutMs: t.transport?.timeoutMsDefault ?? 10000, maxCallsPerTurn: 1, parallelism: 1, retry: t.transport?.retry || { maxAttempts: 2, backoff: "exponential", initialDelayMs: 200 }, parameterOverrides: {} }); update({ tools: { ...(node.data.tools || {}), bindings } }); } setCatalogOpen(false); }}>Attach</button></td>
+                              <td><button className="ab-btn ab-btn--primary" onClick={(e) => {
+                                e.stopPropagation();
+                                const id = uuidv4();
+                                const toolNode: any = { id, kind: "tool", label: t.displayName || t.name || "Tool", data: { name: "Tool", toolId: t.id, version: t.version, parameterOverrides: {} } };
+                                dispatch({ type: "ADD_NODE", node: toolNode });
+                                const edgeId = uuidv4();
+                                dispatch({ type: "ADD_EDGE", edge: { id: edgeId, from: nodeId, to: id } as any });
+                                setCatalogOpen(false);
+                              }}>Attach</button></td>
                             </tr>
                           ))}
                         </tbody>
@@ -458,7 +573,7 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
                                 </ul>
                               </div>
                             )}
-                            {t.argsSchema && <div className="ab-hint">Args Schema present</div>}
+                            {/* Args schema hint removed */}
                             {t.responseSchema && <div className="ab-hint">Response Schema present</div>}
                           </div>
                         );
@@ -470,7 +585,7 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
             </div>
           )}
 
-          {paramDrawer.open && paramDrawer.toolId && (
+          {/* paramDrawer removed */ false && (
             <div className="ab-modal" role="dialog" aria-modal="true" aria-label="Tool Parameters" onClick={() => setParamDrawer({ open: false })}>
               <div className="ab-modal__content" onClick={(e) => e.stopPropagation()}>
                 <div className="ab-modal__header"><h3>Parameters</h3><button onClick={() => setParamDrawer({ open: false })} aria-label="Close">✕</button></div>

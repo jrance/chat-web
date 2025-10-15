@@ -15,6 +15,7 @@ type State = {
   selectedEdgeId?: string;
   autoTidyOnSave: boolean;
   dirty: boolean;
+  openTestForNodeId?: string;
 };
 
 type Action =
@@ -30,7 +31,8 @@ type Action =
   | { type: "REMOVE_EDGE"; id: string }
   | { type: "TIDY" }
   | { type: "SET_AUTO_TIDY"; value: boolean }
-  | { type: "SET_DIRTY"; value: boolean };
+  | { type: "SET_DIRTY"; value: boolean }
+  | { type: "OPEN_TEST"; nodeId: string };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -101,7 +103,7 @@ function reducer(state: State, action: Action): State {
               jsonModeEnabled: false,
             },
             context: { historyWindow: { mode: "LastN", n: 10 }, injectOrgPreamble: true, vars: {} },
-            tools: { policy: "Disabled", timeoutMs: 10000, maxCallsPerTurn: 0, parallelism: 1, redactPII: true, attached: [], bindings: [] },
+            tools: { policy: "Disabled", timeoutMs: 10000, maxCallsPerTurn: 0, parallelism: 1, redactPII: true, attached: [] },
             structuredOutput: { enabled: false, schema: {}, onViolation: "RetryAndRepair", maxRepairAttempts: 2, postProcess: { normalizeWhitespace: true, ensureMarkdown: true } },
             safety: { policyRef: "enterprise-v3", onBlock: "Refuse", piiRedaction: true, promptInjectionDefense: true },
             telemetry: { labels: {}, emitUsage: true },
@@ -143,6 +145,7 @@ function reducer(state: State, action: Action): State {
       let ir: IRGraph = { ...state.ir, nodes: filteredIRNodes, edges: newIREdges };
 
       for (const n of ir.nodes) {
+        // No-op: argsSchema not required for Tool nodes
         if (n.kind === "router" && (n as any).data?.autoSyncEnum) {
           ir = syncRouterEnum(ir, n.id);
         }
@@ -160,6 +163,27 @@ function reducer(state: State, action: Action): State {
           const pruned: any = {};
           for (const cid of next) if (cov[cid]) pruned[cid] = cov[cid];
           ir = { ...ir, nodes: ir.nodes.map((m) => (m.id === n.id ? { ...m, data: { ...(m as any).data, childOverrides: pruned } } as any : m)) };
+        }
+        if (n.kind === "agent.codeless") {
+          // Sync connected tool nodes into data.tools.attached based on graph edges
+          const outToolIds = ir.edges
+            .filter((e) => e.from === n.id)
+            .map((e) => e.to)
+            .filter((tid) => (ir.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const inToolIds = ir.edges
+            .filter((e) => e.to === n.id)
+            .map((e) => e.from)
+            .filter((tid) => (ir.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const attached = Array.from(new Set([...outToolIds, ...inToolIds]));
+          const d: any = (n as any).data || {};
+          const prev: string[] = (d?.tools?.attached as string[] | undefined) || [];
+          if (JSON.stringify(prev) !== JSON.stringify(attached)) {
+            const nextTools = { ...(d.tools || {}), attached };
+            ir = {
+              ...ir,
+              nodes: ir.nodes.map((m) => (m.id === n.id ? ({ ...m, data: { ...d, tools: nextTools } } as any) : m)),
+            };
+          }
         }
       }
 
@@ -185,6 +209,20 @@ function reducer(state: State, action: Action): State {
         const next = order.includes(action.edge.to) ? order : [...order, action.edge.to];
         ir = { ...ir, nodes: ir.nodes.map((n) => (n.id === source.id ? { ...n, data: { ...((n as any).data || {}), childrenOrder: next } } as any : n)) };
       }
+      // Sync codeless attachments after edge add
+      for (const n of ir.nodes) {
+        if (n.kind === "agent.codeless") {
+          const outToolIds = ir.edges.filter((e) => e.from === n.id).map((e) => e.to).filter((tid) => (ir.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const inToolIds = ir.edges.filter((e) => e.to === n.id).map((e) => e.from).filter((tid) => (ir.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const attached = Array.from(new Set([...outToolIds, ...inToolIds]));
+          const d: any = (n as any).data || {};
+          const prev: string[] = (d?.tools?.attached as string[] | undefined) || [];
+          if (JSON.stringify(prev) !== JSON.stringify(attached)) {
+            const nextTools = { ...(d.tools || {}), attached };
+            ir = { ...ir, nodes: ir.nodes.map((m) => (m.id === n.id ? ({ ...m, data: { ...d, tools: nextTools } } as any) : m)) };
+          }
+        }
+      }
       const { nodes, edges } = irToReactFlow(ir);
       return { ...state, ir, nodes, edges, dirty: true };
     }
@@ -205,9 +243,24 @@ function reducer(state: State, action: Action): State {
     }
     case "REMOVE_NODE": {
       const ir = { ...state.ir, nodes: state.ir.nodes.filter((n) => n.id !== action.id), edges: state.ir.edges.filter((e) => e.from !== action.id && e.to !== action.id) };
+      // Sync codeless attachments after node removal
+      let updatedIr = ir;
+      for (const n of updatedIr.nodes) {
+        if (n.kind === "agent.codeless") {
+          const outToolIds = updatedIr.edges.filter((e) => e.from === n.id).map((e) => e.to).filter((tid) => (updatedIr.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const inToolIds = updatedIr.edges.filter((e) => e.to === n.id).map((e) => e.from).filter((tid) => (updatedIr.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const attached = Array.from(new Set([...outToolIds, ...inToolIds]));
+          const d: any = (n as any).data || {};
+          const prev: string[] = (d?.tools?.attached as string[] | undefined) || [];
+          if (JSON.stringify(prev) !== JSON.stringify(attached)) {
+            const nextTools = { ...(d.tools || {}), attached };
+            updatedIr = { ...updatedIr, nodes: updatedIr.nodes.map((m) => (m.id === n.id ? ({ ...m, data: { ...d, tools: nextTools } } as any) : m)) };
+          }
+        }
+      }
       const nodes = state.nodes.filter((n) => n.id !== action.id);
       const edges = state.edges.filter((e) => e.source !== action.id && e.target !== action.id);
-      return { ...state, ir, nodes, edges, selectedNodeId: undefined, dirty: true };
+      return { ...state, ir: updatedIr, nodes, edges, selectedNodeId: undefined, dirty: true };
     }
     case "REMOVE_EDGE": {
       const removed = state.ir.edges.find((e) => e.id === action.id);
@@ -227,6 +280,20 @@ function reducer(state: State, action: Action): State {
           };
         }
       }
+      // Sync codeless attachments after edge removal
+      for (const n of ir.nodes) {
+        if (n.kind === "agent.codeless") {
+          const outToolIds = ir.edges.filter((e) => e.from === n.id).map((e) => e.to).filter((tid) => (ir.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const inToolIds = ir.edges.filter((e) => e.to === n.id).map((e) => e.from).filter((tid) => (ir.nodes.find((m) => m.id === tid)?.kind) === "tool");
+          const attached = Array.from(new Set([...outToolIds, ...inToolIds]));
+          const d: any = (n as any).data || {};
+          const prev: string[] = (d?.tools?.attached as string[] | undefined) || [];
+          if (JSON.stringify(prev) !== JSON.stringify(attached)) {
+            const nextTools = { ...(d.tools || {}), attached };
+            ir = { ...ir, nodes: ir.nodes.map((m) => (m.id === n.id ? ({ ...m, data: { ...d, tools: nextTools } } as any) : m)) };
+          }
+        }
+      }
       const { nodes, edges } = irToReactFlow(ir);
       return { ...state, ir, nodes, edges, selectedEdgeId: undefined, dirty: true };
     }
@@ -240,6 +307,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, autoTidyOnSave: action.value };
     case "SET_DIRTY":
       return { ...state, dirty: action.value };
+    case "OPEN_TEST":
+      return { ...state, openTestForNodeId: action.nodeId };
     default:
       return state;
   }
