@@ -3,7 +3,7 @@ export type ToolParameter = {
   type: "string" | "number" | "boolean" | "enum";
   default?: any;
   description?: string;
-  scope: "AgentOverride" | "OrgLocked";
+  scope: "AgentOverride" | "OrgLocked" | "LLMHidden";
   enum?: string[];
   min?: number;
   max?: number;

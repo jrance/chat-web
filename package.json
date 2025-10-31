@@ -24,6 +24,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@openai/chatkit-react": "^1.1.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.2",
     "@vitejs/plugin-react": "^4.3.2",

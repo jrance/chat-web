@@ -9,6 +9,7 @@ const MOCK_TOOLS: ToolDefinition[] = [
     auth: { type: "OBO", scopes: ["kb.read"] },
     transport: { kind: "http", endpoint: "https://kb.example.com/api/search" },
     parameters: [
+      { name: "query", type: "string", description: "Search query", scope: "AgentOverride", default: "" },
       { name: "indexName", type: "string", default: "policy-kb", scope: "AgentOverride" },
       { name: "topK", type: "number", default: 5, min: 1, max: 50, scope: "AgentOverride" },
     ],
@@ -23,6 +24,7 @@ const MOCK_TOOLS: ToolDefinition[] = [
     auth: { type: "api_key", scopes: ["web.search"] },
     transport: { kind: "http", endpoint: "https://search.example.com/query" },
     parameters: [
+      { name: "query", type: "string", description: "Search query", scope: "AgentOverride", default: "" },
       { name: "region", type: "enum", enum: ["us", "eu"], default: "us", scope: "OrgLocked" },
       { name: "topK", type: "number", default: 3, min: 1, max: 10, scope: "AgentOverride" },
     ],
@@ -84,4 +86,3 @@ export const mockToolsClient: ToolsClient = {
     return ["tenant:secret/apikey-1", "tenant:secret/mtls-cert-1"];
   },
 };
-

@@ -32,7 +32,7 @@ export function useValidation() {
       const ok = validate(ir);
       const errs: ValidationIssue[] = [];
       if (!ok && validate.errors) {
-        errs.push(...normalizeErrors(validate.errors));
+        errs.push(...normalizeErrors(validate.errors, ir));
       }
       errs.push(...graphRules(ir, toolsIndex));
       return errs;
@@ -54,8 +54,76 @@ export function useValidation() {
   return { computeIssues, validateIR, issues };
 }
 
-function normalizeErrors(errors: ErrorObject[]): ValidationIssue[] {
-  return errors.map((e) => ({ path: e.instancePath || e.schemaPath, message: e.message || "Invalid", severity: "error" }));
+function normalizeErrors(errors: ErrorObject[], ir: IRGraph): ValidationIssue[] {
+  const kindMap: Record<string, string> = {
+    RouterNode: "router",
+    SequentialNode: "sequential",
+    ConcurrentNode: "concurrent",
+    GroupChatNode: "groupchat",
+    CodelessAgentNode: "agent.codeless",
+    BYOEAgentNode: "agent.byoe",
+    RemoteAgentNode: "agent.remote",
+    ToolNode: "tool",
+    MCPServerNode: "mcpServer",
+    OutputNode: "output",
+  };
+  const filtered: ValidationIssue[] = [];
+  for (const e of errors) {
+    const ip = e.instancePath || "";
+    const kw = (e as any).keyword as string | undefined;
+    const sp = (e as any).schemaPath as string | undefined;
+    const missingProp: string | undefined = (e as any).params && (e as any).params.missingProperty;
+    // Suppress branch noise
+    if (kw === "const" || kw === "enum" || kw === "oneOf") continue;
+    // Suppress non-node/edge top-level required
+    if (kw === "required" && !ip.includes("/nodes/") && !ip.includes("/edges/")) continue;
+    // Suppress required at node root (usually other branch requirements)
+    if (kw === "required" && /^\/nodes\/\d+$/.test(ip)) continue;
+    // Suppress required errors from schema branches that don't match the node's kind
+    if (kw === "required" && sp) {
+      const m = sp.match(/\$defs\/(\w+)/);
+      if (m && m[1] && kindMap[m[1]]) {
+        // Extract node index if present
+        const mIdx = ip.match(/^\/nodes\/(\d+)/);
+        if (mIdx) {
+          const idx = Number(mIdx[1]);
+          const node = ir.nodes[idx] as any;
+          if (node && node.kind && node.kind !== kindMap[m[1]]) {
+            continue; // error from wrong branch
+          }
+        }
+      }
+    }
+    // Additional guard: for known required properties that belong to specific kinds, drop when node kind differs
+    if (kw === "required" && missingProp) {
+      const mIdx = ip.match(/^\/nodes\/(\d+)/);
+      if (mIdx) {
+        const idx = Number(mIdx[1]);
+        const node = ir.nodes[idx] as any;
+        const propToKinds: Record<string, string[]> = {
+          routeSchema: ["router"],
+          minConfidence: ["router"],
+          prompt: ["router"],
+          name: ["tool"],
+          url: ["mcpServer"],
+          protocol: ["mcpServer"],
+        };
+        const allowed = propToKinds[missingProp];
+        if (allowed && node?.kind && !allowed.includes(node.kind)) {
+          continue;
+        }
+      }
+    }
+    filtered.push({ path: ip || sp || "#", message: e.message || "Invalid", severity: "error" });
+  }
+  // Deduplicate by path+message
+  const out: ValidationIssue[] = [];
+  const seen = new Set<string>();
+  for (const i of filtered) {
+    const k = `${i.path}|${i.message}`;
+    if (!seen.has(k)) { seen.add(k); out.push(i); }
+  }
+  return out;
 }
 
 function graphRules(ir: IRGraph, toolsIndex?: Record<string, any>): ValidationIssue[] {
@@ -81,7 +149,7 @@ function graphRules(ir: IRGraph, toolsIndex?: Record<string, any>): ValidationIs
       }
     }
   }
-
+  
   // Router rules: minConfidence in [0,1] and enum equals child labels
   for (const n of ir.nodes) {
     if (n.kind === "router") {
@@ -197,15 +265,7 @@ function graphRules(ir: IRGraph, toolsIndex?: Record<string, any>): ValidationIs
       if (d?.structuredOutput?.enabled && !d?.structuredOutput?.schema) {
         list.push({ path: `/nodes/${n.id}/data/structuredOutput/schema`, message: "Structured Output schema required when enabled", severity: "error" });
       }
-      // Tools attached must have argsSchema
-      const attached: string[] = d?.tools?.attached || [];
-      for (const tid of attached) {
-        const tool = ir.nodes.find((m) => m.id === tid && m.kind === "tool") as any;
-        if (tool) {
-          const hasArgs = !!tool.data?.argsSchema;
-          if (!hasArgs) list.push({ path: `/nodes/${n.id}/data/tools/attached`, message: `Tool "${tool.label}" lacks argsSchema`, severity: "error" });
-        }
-      }
+      // Attached tools validation no longer requires argsSchema
       // History window N
       if (d?.context?.historyWindow?.mode === "LastN" && d?.context?.historyWindow?.n != null && d.context.historyWindow.n < 0) {
         list.push({ path: `/nodes/${n.id}/data/context/historyWindow/n`, message: "HistoryWindow N must be >= 0", severity: "error" });
@@ -216,40 +276,7 @@ function graphRules(ir: IRGraph, toolsIndex?: Record<string, any>): ValidationIs
           list.push({ path: `/nodes/${n.id}/data/context/historyWindow/durationMs`, message: "TimeBounded requires a positive duration", severity: "error" });
         }
       }
-      // Tools bindings parameter overrides
-      const bindings: any[] = d?.tools?.bindings || [];
-      if (bindings.length > 0) {
-        for (const b of bindings) {
-          // Look up tool definition from catalog (runtime sample)
-          try {
-            const def = toolsIndex ? toolsIndex[b.toolId] : undefined;
-            if (!def) continue;
-            const params = def.parameters || [];
-            const overrides = b.parameterOverrides || {};
-            // Check for org-locked overrides
-            for (const p of params) {
-              if (p.scope === "OrgLocked" && Object.prototype.hasOwnProperty.call(overrides, p.name)) {
-                list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}`, message: `Override not allowed for OrgLocked parameter: ${p.name}`, severity: "error" });
-              }
-            }
-            // Validate types and ranges
-            for (const key of Object.keys(overrides)) {
-              const p = params.find((x: any) => x.name === key);
-              if (!p) continue;
-              const v = overrides[key];
-              const t = p.type as string;
-              const typeOk =
-                (t === "string" && typeof v === "string") ||
-                (t === "number" && typeof v === "number") ||
-                (t === "boolean" && typeof v === "boolean") ||
-                (t === "enum" && typeof v === "string" && (!p.enum || p.enum.includes(v)));
-              if (!typeOk) {
-                list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/parameterOverrides/${key}`, message: `Invalid override type/value for ${key}`, severity: "error" });
-              }
-              if (t === "number") {
-                if ((p.min != null && v < p.min) || (p.max != null && v > p.max)) {
-                  list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/parameterOverrides/${key}`, message: `${key} must be between ${p.min} and ${p.max}`, severity: "error" });
-      }
+      // Tools bindings removed after merge: overrides now live on Tool nodes
     }
     if (n.kind === "tool") {
       const toolId = (n as any).data?.toolId as string | undefined;
@@ -300,59 +327,6 @@ function graphRules(ir: IRGraph, toolsIndex?: Record<string, any>): ValidationIs
       if (["api_key", "client_credentials", "mtls"].includes(at)) {
         const sec = d.auth?.secretRef;
         if (!sec) list.push({ path: `/nodes/${n.id}/data/auth/secretRef`, message: `${d.auth?.type} requires a SecretRef`, severity: "error" });
-      }
-    }
-  }
-            // Required param without default and no override
-            for (const p of params) {
-              const hasDefault = typeof p.default !== "undefined";
-              if (!hasDefault && !Object.prototype.hasOwnProperty.call(overrides, p.name)) {
-                list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/parameterOverrides/${p.name}`, message: `Missing value for required parameter ${p.name}`, severity: "error" });
-              }
-            }
-            // Heuristic policy configured without keywords/regex
-            if (b.policy === "Heuristic") {
-              const kw = (b.heuristic?.keywords || []).filter((x: any) => typeof x === "string" && x.trim().length > 0);
-              const rgx = b.heuristic?.regex || "";
-              if (kw.length === 0 && !rgx) {
-                list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}`, message: "Heuristic policy has no keywords or regex", severity: "warning" });
-              }
-            }
-            // Timeout must be > 0
-            if (b.timeoutMs != null && b.timeoutMs <= 0) {
-              list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/timeoutMs`, message: "Timeout must be > 0", severity: "error" });
-            }
-            // Retry limits
-            if (b.retry?.maxAttempts != null && (b.retry.maxAttempts < 0 || b.retry.maxAttempts > 5)) {
-              list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/retry/maxAttempts`, message: "Retry maxAttempts must be between 0 and 5", severity: "error" });
-            }
-            // Auth/Setup requirements
-            const authType = def.auth?.type;
-            const at = String(authType || "").toLowerCase();
-            if (authType && at !== "none") {
-              if (at === "obo") {
-                const scopes = b.authOverrides?.scopes || [];
-                if (!Array.isArray(scopes) || scopes.length === 0) list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/authOverrides/scopes`, message: "OBO requires at least one scope", severity: "error" });
-              }
-              if (["api_key", "client_credentials", "mtls"].includes(at)) {
-                const sec = b.authOverrides?.secretRef;
-                if (!sec) list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/authOverrides/secretRef`, message: `${authType} requires a SecretRef`, severity: "error" });
-              }
-            }
-            // Lifecycle / approval
-            const status = def.lifecycle?.status || def.status;
-            if (status === "retired") list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}`, message: "Tool version is retired", severity: "error" });
-            if (status === "deprecated") list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}`, message: "Tool is deprecated", severity: "warning" });
-            if (def.approval && def.approval.orgApproved === false) list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}`, message: "Tool is not org-approved", severity: "warning" });
-            // Parallelism vs quotas
-            const rate = def.quotas?.rateLimitPerMin ?? 0;
-            if ((b.parallelism ?? 1) >= 4 && rate > 0 && rate <= 60) {
-              list.push({ path: `/nodes/${n.id}/data/tools/bindings/${b.toolId}/parallelism`, message: "High parallelism may cause throttling with low rate limits", severity: "warning" });
-            }
-          } catch {
-            // ignore if catalog not available
-          }
-        }
       }
     }
     if (n.kind === "sequential") {

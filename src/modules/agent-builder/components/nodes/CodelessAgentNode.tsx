@@ -15,7 +15,8 @@ export default function CodelessAgentNode({ id, data }: NodeProps<Data>) {
   const provider = node?.data?.model?.provider;
   const modelId = node?.data?.model?.modelId;
   const temperature = node?.data?.model?.temperature;
-  const toolsCount = (node?.data?.tools?.attached as string[] | undefined)?.length || 0;
+  const attachedCount = (node?.data?.tools?.attached as string[] | undefined)?.length || 0;
+  const toolsCount = attachedCount;
 
   return (
     <div className={`ab-node ab-node--agent-codeless`} data-node-id={id}>
