@@ -9,6 +9,7 @@ import {
   WidgetEnvelope,
 } from "../../../lib/orch/types";
 import { mergeEnvelopes } from "../../../lib/widgets/merge";
+import { toRow, TelemetryRow } from "../../../lib/orch/telemetry";
 
 export type StreamStatus = "idle" | "running" | "paused" | "done" | "error";
 
@@ -33,6 +34,7 @@ export function useResponsesStream() {
   const [usage, setUsage] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [hitl, setHitl] = useState<HitlMeta | null>(null);
+  const [telemetry, setTelemetry] = useState<TelemetryRow[]>([]);
   const runIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const opRef = useRef(0);
@@ -65,7 +67,9 @@ export function useResponsesStream() {
         return prev;
       }
 
-      const key = evt.type.startsWith("response.tool_result") ? evt.call_id ?? evt.name : evt.name;
+      const key = evt.type.startsWith("response.tool_result") 
+        ? ("call_id" in evt ? evt.call_id : undefined) ?? evt.name 
+        : evt.name;
       const now = Date.now();
       const next = [...prev];
       let targetIndex = -1;
@@ -87,7 +91,7 @@ export function useResponsesStream() {
           id: crypto.randomUUID(),
           role: "tool",
           text: undefined,
-          tool: { name: evt.name, callId: evt.call_id },
+          tool: { name: evt.name, callId: "call_id" in evt ? evt.call_id : undefined },
           time: now,
           done: false,
         };
@@ -103,7 +107,7 @@ export function useResponsesStream() {
         next[index] = {
           ...current,
           time: now,
-          tool: { name: evt.name, callId: evt.call_id },
+          tool: { name: evt.name, callId: "call_id" in evt ? evt.call_id : undefined },
           done: false,
         };
         return next;
@@ -115,7 +119,7 @@ export function useResponsesStream() {
           time: now,
           tool: {
             name: evt.name,
-            callId: evt.call_id,
+            callId: "call_id" in evt ? evt.call_id : undefined,
             result: evt.result,
             error: evt.error,
           },
@@ -148,6 +152,17 @@ export function useResponsesStream() {
 
   const handleResponseEvent = useCallback(
     (evt: ResponsesEvent, opId: number) => {
+      // Capture telemetry events
+      const row = toRow(evt);
+      if (row) {
+        setTelemetry((prev) => {
+          const next = [...prev, row];
+          // clamp to last 300 for safety
+          if (next.length > 300) next.splice(0, next.length - 300);
+          return next;
+        });
+      }
+
       switch (evt.type) {
         case "response.created":
           if (opRef.current !== opId) {
@@ -385,10 +400,11 @@ export function useResponsesStream() {
       usage,
       error,
       hitl,
+      telemetry,
       send,
       resume,
       cancel,
     }),
-    [messages, status, usage, error, hitl, send, resume, cancel],
+    [messages, status, usage, error, hitl, telemetry, send, resume, cancel],
   );
 }

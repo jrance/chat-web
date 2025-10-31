@@ -4,6 +4,7 @@ import type { ResumePayload } from "../../../lib/orch/types";
 import { useResponsesStream } from "../hooks/useResponsesStream";
 import ResumeBar from "./ResumeBar";
 import TestChatMessage from "./TestChatMessage";
+import TelemetryDrawer from "./TelemetryDrawer";
 
 type TestChatPaneProps = {
   ir: unknown;
@@ -18,12 +19,14 @@ type InnerProps = TestChatPaneProps & {
   onReset: () => void;
 };
 
-const buildHeaders = (tenantId: string, authToken?: string): Record<string, string> => {
+type TelemetryLevel = "none" | "basic" | "verbose";
+
+const buildHeaders = (tenantId: string, authToken?: string, telemetryLevel: TelemetryLevel = "none"): Record<string, string> => {
   const headers: Record<string, string> = {
     "X-Tenant-ID": tenantId,
     "X-Request-ID": crypto.randomUUID(),
     "X-Correlation-ID": crypto.randomUUID(),
-    "X-Telemetry": "none",
+    "X-Telemetry": telemetryLevel,
   };
   if (authToken) {
     headers.Authorization = authToken.startsWith("Bearer ") ? authToken : `Bearer ${authToken}`;
@@ -44,9 +47,10 @@ export default function TestChatPane(props: TestChatPaneProps) {
 function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun, onReset }: InnerProps) {
   const [input, setInput] = useState("");
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [telemetryLevel, setTelemetryLevel] = useState<TelemetryLevel>("none");
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const { runId, messages, status, usage, error, hitl, send, resume, cancel } = useResponsesStream();
+  const { runId, messages, status, usage, error, hitl, telemetry, send, resume, cancel } = useResponsesStream();
 
   useEffect(() => {
     setOrchestratorBase(baseUrl);
@@ -70,20 +74,20 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
     if (!canRun || !input.trim()) {
       return;
     }
-    send(ir, input, buildHeaders(tenantId, authToken));
+    send(ir, input, buildHeaders(tenantId, authToken, telemetryLevel));
     setInput("");
-  }, [authToken, canRun, input, ir, send, tenantId]);
+  }, [authToken, canRun, input, ir, send, tenantId, telemetryLevel]);
 
   const handleResume = useCallback(
     async (payload: ResumePayload) => {
       setResumeBusy(true);
       try {
-        await resume(payload, buildHeaders(tenantId, authToken));
+        await resume(payload, buildHeaders(tenantId, authToken, telemetryLevel));
       } finally {
         setResumeBusy(false);
       }
     },
-    [resume, tenantId, authToken],
+    [resume, tenantId, authToken, telemetryLevel],
   );
 
   const canSend = input.trim().length > 0 && status !== "running" && canRun;
@@ -114,6 +118,16 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
           </div>
         </div>
         <div className="ab-testchat__actions">
+          <label className="text-xs opacity-70 mr-2">Telemetry</label>
+          <select
+            className="bg-neutral-900 text-neutral-50 text-xs rounded px-2 py-1 mr-2"
+            value={telemetryLevel}
+            onChange={(e) => setTelemetryLevel(e.target.value as TelemetryLevel)}
+          >
+            <option value="none">none</option>
+            <option value="basic">basic</option>
+            <option value="verbose">verbose</option>
+          </select>
           <button className="ab-btn ab-btn--outline" onClick={onReset} disabled={status === "running" || messages.length === 0}>
             Clear
           </button>
@@ -123,49 +137,55 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
         </div>
       </div>
 
-      <div className="ab-testchat__messages" ref={scrollRef} aria-live="polite">
-        {messages.length === 0 && (
-          <div className="ab-help">
-            {canRun
-              ? "Send a prompt to stream responses from the orchestration engine."
-              : "Build a graph on the canvas to enable testing."}
+      <div className="flex h-full">
+        <div className="flex-1 flex flex-col">
+          <div className="ab-testchat__messages" ref={scrollRef} aria-live="polite">
+            {messages.length === 0 && (
+              <div className="ab-help">
+                {canRun
+                  ? "Send a prompt to stream responses from the orchestration engine."
+                  : "Build a graph on the canvas to enable testing."}
+              </div>
+            )}
+            {messages.map((message) => (
+              <TestChatMessage key={message.id} m={message} />
+            ))}
           </div>
-        )}
-        {messages.map((message) => (
-          <TestChatMessage key={message.id} m={message} />
-        ))}
-      </div>
 
-      {status === "paused" && hitl && <ResumeBar hitl={hitl} onResume={handleResume} busy={resumeBusy} />}
+          {status === "paused" && hitl && <ResumeBar hitl={hitl} onResume={handleResume} busy={resumeBusy} />}
 
-      <div className="ab-testchat__composer">
-        <textarea
-          ref={editorRef}
-          rows={3}
-          placeholder={status === "paused" ? "Run paused by engine." : "Type a prompt and press Send."}
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              handleSend();
-            }
-          }}
-          disabled={status === "running" || !canRun}
-        />
-        <button className="ab-btn ab-btn--primary" onClick={handleSend} disabled={!canSend}>
-          {status === "running" ? "Streaming..." : "Send"}
-        </button>
-      </div>
+          <div className="ab-testchat__composer">
+            <textarea
+              ref={editorRef}
+              rows={3}
+              placeholder={status === "paused" ? "Run paused by engine." : "Type a prompt and press Send."}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  event.preventDefault();
+                  handleSend();
+                }
+              }}
+              disabled={status === "running" || !canRun}
+            />
+            <button className="ab-btn ab-btn--primary" onClick={handleSend} disabled={!canSend}>
+              {status === "running" ? "Streaming..." : "Send"}
+            </button>
+          </div>
 
-      {usage && (
-        <div className="ab-testchat__usage">
-          <strong>Usage</strong>
-          <pre>{JSON.stringify(usage, null, 2)}</pre>
+          {usage ? (
+            <div className="ab-testchat__usage">
+              <strong>Usage</strong>
+              <pre>{JSON.stringify(usage, null, 2)}</pre>
+            </div>
+          ) : null}
+
+          {error && <div className="ab-testchat__error">Error: {error}</div>}
         </div>
-      )}
 
-      {error && <div className="ab-testchat__error">Error: {error}</div>}
+        {telemetryLevel !== "none" && <TelemetryDrawer rows={telemetry} />}
+      </div>
     </div>
   );
 }
