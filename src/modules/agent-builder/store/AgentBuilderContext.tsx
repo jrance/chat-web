@@ -16,6 +16,7 @@ type State = {
   autoTidyOnSave: boolean;
   dirty: boolean;
   openTestForNodeId?: string;
+  rightPanelMode?: "inspector" | "test";
 };
 
 type Action =
@@ -32,7 +33,9 @@ type Action =
   | { type: "TIDY" }
   | { type: "SET_AUTO_TIDY"; value: boolean }
   | { type: "SET_DIRTY"; value: boolean }
-  | { type: "OPEN_TEST"; nodeId: string };
+  | { type: "OPEN_TEST"; nodeId: string }
+  | { type: "SHOW_TEST_PANEL" }
+  | { type: "SHOW_INSPECTOR_PANEL" };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -190,9 +193,9 @@ function reducer(state: State, action: Action): State {
       return { ...state, nodes: rfNodes, edges: rfEdges, ir, dirty: true };
     }
     case "SELECT_NODE":
-      return { ...state, selectedNodeId: action.id, selectedEdgeId: undefined };
+      return { ...state, selectedNodeId: action.id, selectedEdgeId: undefined, rightPanelMode: "inspector" };
     case "SELECT_EDGE":
-      return { ...state, selectedEdgeId: action.id, selectedNodeId: undefined };
+      return { ...state, selectedEdgeId: action.id, selectedNodeId: undefined, rightPanelMode: "inspector" };
     case "ADD_NODE": {
       const ir = { ...state.ir, nodes: [...state.ir.nodes, action.node] };
       const { nodes, edges } = irToReactFlow(ir);
@@ -309,6 +312,10 @@ function reducer(state: State, action: Action): State {
       return { ...state, dirty: action.value };
     case "OPEN_TEST":
       return { ...state, openTestForNodeId: action.nodeId };
+    case "SHOW_TEST_PANEL":
+      return { ...state, rightPanelMode: "test" };
+    case "SHOW_INSPECTOR_PANEL":
+      return { ...state, rightPanelMode: "inspector" };
     default:
       return state;
   }
@@ -332,7 +339,7 @@ export function AgentBuilderProvider({ children }: { children: React.ReactNode }
       entryId: undefined,
     };
     const { nodes, edges } = irToReactFlow(ir);
-    return { ir, nodes, edges, autoTidyOnSave: false, dirty: false };
+    return { ir, nodes, edges, autoTidyOnSave: false, dirty: false, rightPanelMode: "inspector" };
   }, []);
 
   const [state, dispatch] = useReducer(reducer, initial);

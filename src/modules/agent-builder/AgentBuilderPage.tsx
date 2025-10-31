@@ -9,6 +9,8 @@ import { EdgeEditor } from "./components/EdgeEditor";
 import { ValidationBanner } from "./components/ValidationBanner";
 import { ReactFlowProvider } from "reactflow";
 import { useEffect, useRef, useState } from "react";
+import TestChatPanel from "./components/TestChatPanel";
+import { useAgentBuilder } from "./store/AgentBuilderContext";
 
 export default function AgentBuilderPage(): JSX.Element {
   const [sideWidth, setSideWidth] = useState<number>(340);
@@ -66,12 +68,23 @@ export default function AgentBuilderPage(): JSX.Element {
             onMouseDown={() => setDragging(true)}
           />
           <div className="ab-side" aria-label="Right panel">
-            <Inspector />
-            <EdgeEditor />
+            <RightPanel />
           </div>
         </div>
       </div>
     </AgentBuilderProvider>
     </AgentStudioProvider>
+  );
+}
+
+function RightPanel(): JSX.Element {
+  const { state } = useAgentBuilder();
+  return state.rightPanelMode === "test" ? (
+    <TestChatPanel autoFocus />
+  ) : (
+    <>
+      <Inspector />
+      <EdgeEditor />
+    </>
   );
 }

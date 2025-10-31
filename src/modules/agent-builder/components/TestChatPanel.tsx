@@ -113,7 +113,7 @@ export default function TestChatPanel({ autoFocus }: { autoFocus?: boolean } = {
       <div className="ab-testchat__composer">
         <input
           type="text"
-          placeholder="Ask something…"
+          placeholder="Ask something."
           value={input}
           ref={inputRef}
           onChange={(e) => setInput(e.target.value)}
@@ -123,9 +123,9 @@ export default function TestChatPanel({ autoFocus }: { autoFocus?: boolean } = {
           disabled={!canRun || streaming}
         />
         <button className="ab-btn ab-btn--primary" onClick={runStream} disabled={!canRun || streaming || !input.trim()}>
-          {streaming ? "Streaming…" : "Run (stream)"}
+          {streaming ? "Streaming." : "Run (stream)"}
         </button>
-        <button className="ab-btn" onClick={runOnce} disabled={!canRun || streaming || !input.trim()}>Run (non‑stream)</button>
+        <button className="ab-btn" onClick={runOnce} disabled={!canRun || streaming || !input.trim()}>Run (non-stream)</button>
         <button className="ab-btn ab-btn--outline" onClick={stop} disabled={!streaming}>Stop</button>
       </div>
       <style>{`
@@ -140,4 +140,3 @@ export default function TestChatPanel({ autoFocus }: { autoFocus?: boolean } = {
     </div>
   );
 }
-

@@ -53,16 +53,8 @@ export function TopBar(): JSX.Element {
 
   const onTidy = () => dispatch({ type: "TIDY" });
   const onTest = () => {
-    // Find currently selected agent or first codeless agent
-    const selectedId = state.selectedNodeId;
-    const isAgentSelected = selectedId && state.ir.nodes.find((n) => n.id === selectedId && n.kind === "agent.codeless");
-    const target = (isAgentSelected ? selectedId : state.ir.nodes.find((n) => n.kind === "agent.codeless")?.id) as string | undefined;
-    if (target) {
-      // Focus that node and open its Test tab
-      if (state.selectedNodeId !== target) dispatch({ type: "SELECT_NODE", id: target });
-      // fire-and-forget marker read by inspector to switch tabs
-      (dispatch as any)({ type: "OPEN_TEST", nodeId: target });
-    }
+    // Show dedicated Test panel in the right pane
+    dispatch({ type: "SHOW_TEST_PANEL" });
   };
 
   return (

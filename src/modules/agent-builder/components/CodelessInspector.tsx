@@ -6,7 +6,6 @@ import { useToolsCatalog } from "../hooks/useToolsCatalog";
 import { useTool } from "../hooks/useTool";
 import { fetchModels, fetchProviders } from "../config/modelRegistry";
 import { v4 as uuidv4 } from "uuid";
-import TestChatPanel from "./TestChatPanel";
 
 export default function CodelessInspector({ nodeId }: { nodeId: string }) {
   const { state, dispatch } = useAgentBuilder();
@@ -66,9 +65,6 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
 
   return (
     <div>
-      <div className="ab-inspector__section">
-        <TestChatPanel autoFocus={state.openTestForNodeId === nodeId} />
-      </div>
       <div className="ab-tabs" role="tablist" aria-label="Codeless agent inspector tabs">
         {(["Basics", "Instructions", "Model", "Context", "Tools", "Structured", "Safety", "Telemetry", "Validation"] as const).map((t) => (
           <button key={t} className={`ab-tab ${tab === t ? "ab-tab--active" : ""}`} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>{t}</button>
@@ -210,7 +206,7 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
         </div>
       )}
 
-      {/* Test chat is always visible above; no tab needed */}
+      
 
       {tab === "Tools" && (
         <div className="ab-inspector__section">
