@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setOrchestratorBase } from "../../../lib/orch/client";
+import type { ResumePayload } from "../../../lib/orch/types";
 import { useResponsesStream } from "../hooks/useResponsesStream";
+import ResumeBar from "./ResumeBar";
 import TestChatMessage from "./TestChatMessage";
 
 type TestChatPaneProps = {
@@ -41,9 +43,10 @@ export default function TestChatPane(props: TestChatPaneProps) {
 
 function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun, onReset }: InnerProps) {
   const [input, setInput] = useState("");
+  const [resumeBusy, setResumeBusy] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const { runId, messages, status, usage, error, send, cancel } = useResponsesStream();
+  const { runId, messages, status, usage, error, hitl, send, resume, cancel } = useResponsesStream();
 
   useEffect(() => {
     setOrchestratorBase(baseUrl);
@@ -71,6 +74,18 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
     setInput("");
   }, [authToken, canRun, input, ir, send, tenantId]);
 
+  const handleResume = useCallback(
+    async (payload: ResumePayload) => {
+      setResumeBusy(true);
+      try {
+        await resume(payload, buildHeaders(tenantId, authToken));
+      } finally {
+        setResumeBusy(false);
+      }
+    },
+    [resume, tenantId, authToken],
+  );
+
   const canSend = input.trim().length > 0 && status !== "running" && canRun;
 
   const statusLabel = useMemo(() => {
@@ -78,7 +93,7 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
       case "running":
         return "Running";
       case "paused":
-        return "Paused (resume in orchestration engine)";
+        return hitl ? "Paused - choose an option below to continue" : "Paused";
       case "done":
         return "Completed";
       case "error":
@@ -86,7 +101,7 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
       default:
         return "Idle";
     }
-  }, [status]);
+  }, [status, hitl]);
 
   return (
     <div className="ab-testchat">
@@ -102,7 +117,7 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
           <button className="ab-btn ab-btn--outline" onClick={onReset} disabled={status === "running" || messages.length === 0}>
             Clear
           </button>
-          <button className="ab-btn" onClick={cancel} disabled={status !== "running"}>
+          <button className="ab-btn" onClick={cancel} disabled={status !== "running" && status !== "paused"}>
             Cancel
           </button>
         </div>
@@ -120,6 +135,8 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
           <TestChatMessage key={message.id} m={message} />
         ))}
       </div>
+
+      {status === "paused" && hitl && <ResumeBar hitl={hitl} onResume={handleResume} busy={resumeBusy} />}
 
       <div className="ab-testchat__composer">
         <textarea

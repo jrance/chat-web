@@ -7,6 +7,24 @@ export type WidgetEnvelope = {
 
 export type ResponseCompletionStatus = "completed" | "paused";
 
+export type HitlRouterChoice = {
+  kind: "router_choice";
+  targets: Array<{ id: string; label?: string }>;
+  message?: string;
+};
+
+export type HitlClarify = {
+  kind: "user_message";
+  message?: string;
+  placeholder?: string;
+};
+
+export type HitlMeta = HitlRouterChoice | HitlClarify | (HitlRouterChoice & HitlClarify);
+
+export type ResumePayload =
+  | { kind: "router_choice"; choice: { target: string } }
+  | { kind: "user_message"; message: string };
+
 export type ResponseError = {
   code: string;
   message: string;
@@ -28,7 +46,7 @@ export type ResponsesEvent =
   | { type: "response.function_call_arguments.done"; name: string }
   | { type: "response.tool_result.created"; name: string; call_id?: string }
   | { type: "response.tool_result.done"; name: string; call_id?: string; result?: unknown; error?: ResponseToolError }
-  | { type: "response.completed"; status: ResponseCompletionStatus; usage?: ResponseUsage; hitl?: unknown }
+  | { type: "response.completed"; status: ResponseCompletionStatus; usage?: ResponseUsage; hitl?: HitlMeta | null }
   | { type: "response.error"; error: ResponseError };
 
 export type ExecuteOptions = {

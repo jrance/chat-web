@@ -1,6 +1,6 @@
 import { API_BASE } from "../../app/config";
 import { parseResponsesEvent, sseIterator } from "./sse";
-import { ExecuteOptions, ExecuteRequestBody, ResponsesEvent } from "./types";
+import { ExecuteOptions, ExecuteRequestBody, ResumePayload, ResponsesEvent } from "./types";
 
 const STREAM_PATH = "/v1/execute/stream";
 
@@ -44,6 +44,40 @@ export async function* executeStream(body: ExecuteRequestBody, options: ExecuteO
 
   if (!response.body) {
     throw new Error("Stream response did not include a body.");
+  }
+
+  for await (const sse of sseIterator(response.body)) {
+    const evt = parseResponsesEvent(sse);
+    if (evt) {
+      yield evt;
+    }
+  }
+}
+
+export async function* resumeStream(runId: string, payload: ResumePayload, options: ExecuteOptions = {}): AsyncGenerator<ResponsesEvent> {
+  const base = trimTrailingSlash(options.baseUrl ?? orchestratorBase);
+  const url = `${base}/v1/execute/${encodeURIComponent(runId)}/resume`;
+
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => response.statusText || "Unknown error");
+    throw new Error(`Resume request failed (${response.status}): ${message}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Resume response did not include a body.");
   }
 
   for await (const sse of sseIterator(response.body)) {

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { executeStream } from "../../../lib/orch/client";
+import { executeStream, resumeStream } from "../../../lib/orch/client";
 import {
   ChatMessage,
   ExecuteRequestBody,
+  HitlMeta,
+  ResumePayload,
   ResponsesEvent,
   WidgetEnvelope,
 } from "../../../lib/orch/types";
@@ -30,6 +32,7 @@ export function useResponsesStream() {
   const [status, setStatus] = useState<StreamStatus>("idle");
   const [usage, setUsage] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hitl, setHitl] = useState<HitlMeta | null>(null);
   const runIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const opRef = useRef(0);
@@ -209,6 +212,7 @@ export function useResponsesStream() {
           }
           setStatus(evt.status === "paused" ? "paused" : "done");
           setUsage(evt.usage ?? null);
+          setHitl(evt.hitl ?? null);
           break;
 
         case "response.error":
@@ -260,6 +264,7 @@ export function useResponsesStream() {
       setStatus("running");
       setError(null);
       setUsage(null);
+      setHitl(null);
 
       const body: ExecuteRequestBody = {
         ir,
@@ -295,8 +300,74 @@ export function useResponsesStream() {
     [handleResponseEvent],
   );
 
+  const resume = useCallback(
+    async (payload: ResumePayload, headers: SendHeaders = {}) => {
+      const activeRunId = runIdRef.current;
+      if (!activeRunId) {
+        throw new Error("No active runId to resume");
+      }
+
+      if (abortRef.current) {
+        try {
+          abortRef.current.abort("resume");
+        } catch {
+          // ignore
+        }
+      }
+
+      const opId = opRef.current + 1;
+      opRef.current = opId;
+
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      setError(null);
+      setStatus("running");
+      setHitl(null);
+
+      // Re-open the last assistant message if it exists and is done, so resume can continue it
+      setMessages((prev) => {
+        const last = prev.length > 0 ? prev[prev.length - 1] : undefined;
+        if (last && last.role === "assistant" && last.done) {
+          return [...prev.slice(0, -1), { ...last, done: false }];
+        }
+        return prev;
+      });
+
+      try {
+        for await (const evt of resumeStream(activeRunId, payload, { headers, signal: ctrl.signal })) {
+          if (opRef.current !== opId) {
+            break;
+          }
+          handleResponseEvent(evt, opId);
+        }
+      } catch (err) {
+        if (opRef.current !== opId) {
+          return;
+        }
+        if (ctrl.signal.aborted || isAbortError(err)) {
+          setStatus("idle");
+        } else {
+          setStatus("error");
+          setError((err as { message?: string })?.message ?? String(err));
+        }
+      } finally {
+        if (abortRef.current === ctrl) {
+          abortRef.current = null;
+        }
+        if (opRef.current === opId && !ctrl.signal.aborted) {
+          setStatus((prev) => (prev === "running" ? "idle" : prev));
+        }
+      }
+    },
+    [handleResponseEvent],
+  );
+
   const cancel = useCallback(() => {
+    setHitl(null);
     if (!abortRef.current) {
+      // If paused, there's no active controller, just reset to idle
+      setStatus("idle");
       return;
     }
     try {
@@ -313,9 +384,11 @@ export function useResponsesStream() {
       status,
       usage,
       error,
+      hitl,
       send,
+      resume,
       cancel,
     }),
-    [messages, status, usage, error, send, cancel],
+    [messages, status, usage, error, hitl, send, resume, cancel],
   );
 }
