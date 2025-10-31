@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setOrchestratorBase } from "../../../lib/orch/client";
 import { useResponsesStream } from "../hooks/useResponsesStream";
+import TestChatMessage from "./TestChatMessage";
 
 type TestChatPaneProps = {
   ir: unknown;
@@ -116,31 +117,7 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
           </div>
         )}
         {messages.map((message) => (
-          <article key={message.id} className={`ab-msg ab-msg--${message.role}`}>
-            <header className="ab-msg__role">{message.role}</header>
-            <div className="ab-msg__content">
-              {message.text && <p>{message.text}</p>}
-              {message.widgets?.length ? (
-                <div className="ab-msg__widgets">
-                  {message.widgets.map((widget, index) => (
-                    <pre key={index} className="ab-msg__widget">
-                      {JSON.stringify(widget, null, 2)}
-                    </pre>
-                  ))}
-                </div>
-              ) : null}
-              {message.tool && (
-                <div className="ab-msg__tool">
-                  <div className="ab-msg__tool-name">{message.tool.name}</div>
-                  {message.tool.error ? (
-                    <pre className="ab-msg__tool-error">{JSON.stringify(message.tool.error, null, 2)}</pre>
-                  ) : (
-                    <pre className="ab-msg__tool-result">{JSON.stringify(message.tool.result, null, 2)}</pre>
-                  )}
-                </div>
-              )}
-            </div>
-          </article>
+          <TestChatMessage key={message.id} m={message} />
         ))}
       </div>
 

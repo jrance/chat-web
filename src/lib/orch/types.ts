@@ -1,5 +1,6 @@
 export type WidgetEnvelope = {
   kind: string;
+  id?: string;
   version?: string;
   props?: Record<string, unknown>;
 };

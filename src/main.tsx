@@ -3,6 +3,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
+import { registerBuiltins } from "./lib/widgets";
+
+// Register built-in widgets
+registerBuiltins();
 
 const rootElement = document.getElementById("root");
 

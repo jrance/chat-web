@@ -152,3 +152,96 @@ test("overlapping sends keep status with active stream", async () => {
   const assistant = result.current.messages.find((m) => m.role === "assistant");
   expect(assistant?.text).toBe("Hi");
 });
+
+test("merges ui envelopes into assistant message widgets", async () => {
+  collectEvents([
+    { type: "response.created", run_id: "run-widgets" },
+    {
+      type: "response.output_text.delta",
+      delta: "Here are ",
+      ui: { kind: "citation-list", props: { items: [] } },
+    },
+    {
+      type: "response.output_text.delta",
+      delta: "citations",
+      ui: { kind: "citation-list", props: { items: [{ url: "http://example.com", title: "Example" }] } },
+    },
+    { type: "response.output_text.done" },
+    { type: "response.completed", status: "completed" },
+  ]);
+
+  const { result } = renderHook(() => useResponsesStream());
+
+  await act(async () => {
+    await result.current.send({ nodes: [] }, "search", {});
+  });
+
+  expect(result.current.messages).toHaveLength(2);
+  const assistant = result.current.messages[1];
+  expect(assistant?.role).toBe("assistant");
+  expect(assistant?.text).toBe("Here are citations");
+  expect(assistant?.widgets).toBeDefined();
+  expect(assistant?.widgets).toHaveLength(1);
+  expect(assistant?.widgets?.[0].kind).toBe("citation-list");
+  expect(assistant?.widgets?.[0].props?.items).toHaveLength(1);
+});
+
+test("merges ui envelopes by kind and id", async () => {
+  collectEvents([
+    { type: "response.created", run_id: "run-widgets-id" },
+    {
+      type: "response.output_text.delta",
+      delta: "Processing",
+      ui: { kind: "key-value", id: "status", props: { entries: [{ key: "status", value: "pending" }] } },
+    },
+    {
+      type: "response.output_text.delta",
+      delta: "...",
+      ui: { kind: "key-value", id: "status", props: { entries: [{ key: "status", value: "complete" }] } },
+    },
+    { type: "response.output_text.done" },
+    { type: "response.completed", status: "completed" },
+  ]);
+
+  const { result } = renderHook(() => useResponsesStream());
+
+  await act(async () => {
+    await result.current.send({ nodes: [] }, "process", {});
+  });
+
+  const assistant = result.current.messages[1];
+  expect(assistant?.widgets).toHaveLength(1);
+  expect(assistant?.widgets?.[0].id).toBe("status");
+  expect(assistant?.widgets?.[0].props?.entries).toHaveLength(1);
+  const entries = assistant?.widgets?.[0].props?.entries as Array<{ key: string; value: string }>;
+  expect(entries?.[0]?.value).toBe("complete");
+});
+
+test("handles multiple different widgets in same message", async () => {
+  collectEvents([
+    { type: "response.created", run_id: "run-multi-widgets" },
+    {
+      type: "response.output_text.delta",
+      delta: "Results: ",
+      ui: { kind: "table", props: { columns: ["Name"], rows: [] } },
+    },
+    {
+      type: "response.output_text.delta",
+      delta: "done",
+      ui: { kind: "code", props: { content: "print('hello')", language: "python" } },
+    },
+    { type: "response.output_text.done" },
+    { type: "response.completed", status: "completed" },
+  ]);
+
+  const { result } = renderHook(() => useResponsesStream());
+
+  await act(async () => {
+    await result.current.send({ nodes: [] }, "code", {});
+  });
+
+  const assistant = result.current.messages[1];
+  expect(assistant?.widgets).toHaveLength(2);
+  expect(assistant?.widgets?.[0].kind).toBe("table");
+  expect(assistant?.widgets?.[1].kind).toBe("code");
+});

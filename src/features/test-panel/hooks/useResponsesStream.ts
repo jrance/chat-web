@@ -6,6 +6,7 @@ import {
   ResponsesEvent,
   WidgetEnvelope,
 } from "../../../lib/orch/types";
+import { mergeEnvelopes } from "../../../lib/widgets/merge";
 
 export type StreamStatus = "idle" | "running" | "paused" | "done" | "error";
 
@@ -23,14 +24,6 @@ const isAbortError = (error: unknown): boolean => {
   }
   return false;
 };
-
-function appendWidget(existing: ChatMessage, widget?: WidgetEnvelope): ChatMessage {
-  if (!widget) {
-    return existing;
-  }
-  const widgets = existing.widgets ? [...existing.widgets, widget] : [widget];
-  return { ...existing, widgets };
-}
 
 export function useResponsesStream() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -168,27 +161,23 @@ export function useResponsesStream() {
             const now = Date.now();
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined;
             if (!last || last.role !== "assistant" || last.done) {
-              const nextMessage: ChatMessage = appendWidget(
-                {
-                  id: crypto.randomUUID(),
-                  role: "assistant",
-                  text: evt.delta,
-                  time: now,
-                  done: false,
-                },
-                evt.ui,
-              );
+              const nextMessage: ChatMessage = {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                text: evt.delta,
+                time: now,
+                done: false,
+                widgets: evt.ui ? [evt.ui] : undefined,
+              };
               return [...prev, nextMessage];
             }
 
-            const updated: ChatMessage = appendWidget(
-              {
-                ...last,
-                text: (last.text ?? "") + evt.delta,
-                time: now,
-              },
-              evt.ui,
-            );
+            const updated: ChatMessage = {
+              ...last,
+              text: (last.text ?? "") + evt.delta,
+              time: now,
+              widgets: mergeEnvelopes(last.widgets || [], evt.ui),
+            };
             return [...prev.slice(0, -1), updated];
           });
           break;
