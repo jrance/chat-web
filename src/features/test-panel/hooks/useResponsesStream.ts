@@ -39,25 +39,43 @@ export function useResponsesStream() {
   const [error, setError] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const opRef = useRef(0);
 
   useEffect(() => {
     return () => {
-      abortRef.current?.abort();
+      if (abortRef.current) {
+        opRef.current += 1;
+        try {
+          abortRef.current.abort("unmount");
+        } catch {
+          // ignore
+        }
+      }
     };
   }, []);
 
-  const upsertToolMessage = useCallback((evt: ResponsesEvent) => {
-    if (evt.type !== "response.tool_result.created" && evt.type !== "response.tool_result.done" && evt.type !== "response.function_call_arguments.delta" && evt.type !== "response.function_call_arguments.done") {
+  const upsertToolMessage = useCallback((evt: ResponsesEvent, opId: number) => {
+    if (
+      evt.type !== "response.tool_result.created" &&
+      evt.type !== "response.tool_result.done" &&
+      evt.type !== "response.function_call_arguments.delta" &&
+      evt.type !== "response.function_call_arguments.done"
+    ) {
       return;
     }
 
     setMessages((prev) => {
+      if (opRef.current !== opId) {
+        return prev;
+      }
+
       const key = evt.type.startsWith("response.tool_result") ? evt.call_id ?? evt.name : evt.name;
       const now = Date.now();
-        const next = [...prev];
-        let targetIndex = -1;
-        for (let i = next.length - 1; i >= 0; i -= 1) {
-          const candidate = next[i];
+      const next = [...prev];
+      let targetIndex = -1;
+
+      for (let i = next.length - 1; i >= 0; i -= 1) {
+        const candidate = next[i];
         const candidateKey = candidate.tool?.callId || candidate.tool?.name;
         if (candidate.role === "tool" && candidateKey === key) {
           targetIndex = i;
@@ -132,74 +150,92 @@ export function useResponsesStream() {
     });
   }, []);
 
-  const handleResponseEvent = useCallback((evt: ResponsesEvent) => {
-    switch (evt.type) {
-      case "response.created":
-        runIdRef.current = evt.run_id ?? evt.id ?? null;
-        break;
+  const handleResponseEvent = useCallback(
+    (evt: ResponsesEvent, opId: number) => {
+      switch (evt.type) {
+        case "response.created":
+          if (opRef.current !== opId) {
+            return;
+          }
+          runIdRef.current = evt.run_id ?? evt.id ?? null;
+          break;
 
-      case "response.output_text.delta":
-        setMessages((prev) => {
-          const now = Date.now();
-          const last = prev.length > 0 ? prev[prev.length - 1] : undefined;
-          if (!last || last.role !== "assistant" || last.done) {
-            const nextMessage: ChatMessage = appendWidget(
+        case "response.output_text.delta":
+          setMessages((prev) => {
+            if (opRef.current !== opId) {
+              return prev;
+            }
+            const now = Date.now();
+            const last = prev.length > 0 ? prev[prev.length - 1] : undefined;
+            if (!last || last.role !== "assistant" || last.done) {
+              const nextMessage: ChatMessage = appendWidget(
+                {
+                  id: crypto.randomUUID(),
+                  role: "assistant",
+                  text: evt.delta,
+                  time: now,
+                  done: false,
+                },
+                evt.ui,
+              );
+              return [...prev, nextMessage];
+            }
+
+            const updated: ChatMessage = appendWidget(
               {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                text: evt.delta,
+                ...last,
+                text: (last.text ?? "") + evt.delta,
                 time: now,
-                done: false,
               },
               evt.ui,
             );
-            return [...prev, nextMessage];
+            return [...prev.slice(0, -1), updated];
+          });
+          break;
+
+        case "response.output_text.done":
+          setMessages((prev) => {
+            if (opRef.current !== opId) {
+              return prev;
+            }
+            const last = prev.length > 0 ? prev[prev.length - 1] : undefined;
+            if (!last || last.role !== "assistant" || last.done) {
+              return prev;
+            }
+            const updated: ChatMessage = { ...last, done: true };
+            return [...prev.slice(0, -1), updated];
+          });
+          break;
+
+        case "response.function_call_arguments.delta":
+        case "response.function_call_arguments.done":
+        case "response.tool_result.created":
+        case "response.tool_result.done":
+          upsertToolMessage(evt, opId);
+          break;
+
+        case "response.completed":
+          if (opRef.current !== opId) {
+            return;
           }
+          setStatus(evt.status === "paused" ? "paused" : "done");
+          setUsage(evt.usage ?? null);
+          break;
 
-          const updated: ChatMessage = appendWidget(
-            {
-              ...last,
-              text: (last.text ?? "") + evt.delta,
-              time: now,
-            },
-            evt.ui,
-          );
-          return [...prev.slice(0, -1), updated];
-        });
-        break;
-
-      case "response.output_text.done":
-        setMessages((prev) => {
-          const last = prev.length > 0 ? prev[prev.length - 1] : undefined;
-          if (!last || last.role !== "assistant" || last.done) {
-            return prev;
+        case "response.error":
+          if (opRef.current !== opId) {
+            return;
           }
-          const updated: ChatMessage = { ...last, done: true };
-          return [...prev.slice(0, -1), updated];
-        });
-        break;
+          setStatus("error");
+          setError(evt.error?.message ?? "Unknown error");
+          break;
 
-      case "response.function_call_arguments.delta":
-      case "response.function_call_arguments.done":
-      case "response.tool_result.created":
-      case "response.tool_result.done":
-        upsertToolMessage(evt);
-        break;
-
-      case "response.completed":
-        setStatus(evt.status === "paused" ? "paused" : "done");
-        setUsage(evt.usage ?? null);
-        break;
-
-      case "response.error":
-        setStatus("error");
-        setError(evt.error?.message ?? "Unknown error");
-        break;
-
-      default:
-        break;
-    }
-  }, [upsertToolMessage]);
+        default:
+          break;
+      }
+    },
+    [upsertToolMessage],
+  );
 
   const send = useCallback(
     async (ir: unknown, userText: string, headers: SendHeaders = {}) => {
@@ -207,7 +243,17 @@ export function useResponsesStream() {
         return;
       }
 
-      abortRef.current?.abort();
+      const opId = opRef.current + 1;
+      const previousController = abortRef.current;
+      opRef.current = opId;
+
+      if (previousController) {
+        try {
+          previousController.abort("replaced");
+        } catch {
+          // ignore
+        }
+      }
 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -233,18 +279,27 @@ export function useResponsesStream() {
 
       try {
         for await (const evt of executeStream(body, { headers, signal: ctrl.signal })) {
-          handleResponseEvent(evt);
+          if (opRef.current !== opId) {
+            break;
+          }
+          handleResponseEvent(evt, opId);
         }
       } catch (err) {
-        if (ctrl.signal.aborted || isAbortError(err)) {
-          setStatus("idle");
+        if (opRef.current !== opId) {
           return;
         }
-        setStatus("error");
-        setError((err as { message?: string })?.message ?? String(err));
+        if (ctrl.signal.aborted || isAbortError(err)) {
+          setStatus("idle");
+        } else {
+          setStatus("error");
+          setError((err as { message?: string })?.message ?? String(err));
+        }
       } finally {
         if (abortRef.current === ctrl) {
           abortRef.current = null;
+        }
+        if (opRef.current === opId && !ctrl.signal.aborted) {
+          setStatus((prev) => (prev === "running" ? "idle" : prev));
         }
       }
     },
@@ -255,8 +310,11 @@ export function useResponsesStream() {
     if (!abortRef.current) {
       return;
     }
-    abortRef.current.abort();
-    setStatus("idle");
+    try {
+      abortRef.current.abort("user-cancel");
+    } catch {
+      // ignore
+    }
   }, []);
 
   return useMemo(

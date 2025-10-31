@@ -1,4 +1,4 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { ResponsesEvent } from "../src/lib/orch/types";
 import { useResponsesStream } from "../src/features/test-panel/hooks/useResponsesStream";
@@ -89,4 +89,66 @@ test("cancel aborts the stream and resets status", async () => {
   expect(result.current.status).toBe("idle");
   expect(result.current.error).toBeNull();
   expect(result.current.runId).toBe("run-cancel");
+});
+
+test("overlapping sends keep status with active stream", async () => {
+  let releaseDelta: (() => void) | undefined;
+  executeStreamMock
+    .mockImplementationOnce(async function* (_body, options: { signal?: AbortSignal }) {
+      const signal = options.signal;
+      if (!signal) {
+        return;
+      }
+      await new Promise((_, reject) => {
+        const abortError = Object.assign(new Error("Aborted"), { name: "AbortError" });
+        if (signal.aborted) {
+          reject(abortError);
+          return;
+        }
+        signal.addEventListener("abort", () => reject(abortError), { once: true });
+      });
+    })
+    .mockImplementationOnce(async function* () {
+      yield { type: "response.created", run_id: "run-2" } satisfies ResponsesEvent;
+      await new Promise<void>((resolve) => {
+        releaseDelta = resolve;
+      });
+      yield { type: "response.output_text.delta", delta: "Hi" } satisfies ResponsesEvent;
+      yield { type: "response.output_text.done" } satisfies ResponsesEvent;
+      yield { type: "response.completed", status: "completed" } satisfies ResponsesEvent;
+    });
+
+  const { result } = renderHook(() => useResponsesStream());
+
+  let firstSend: Promise<void> | undefined;
+  let secondSend: Promise<void> | undefined;
+
+  await act(async () => {
+    firstSend = result.current.send({ nodes: [] }, "first", {});
+    secondSend = result.current.send({ nodes: [] }, "second", {});
+  });
+
+  await waitFor(() => {
+    expect(result.current.status).toBe("running");
+    expect(releaseDelta).toBeTypeOf("function");
+  });
+
+  releaseDelta!();
+
+  expect(secondSend).toBeDefined();
+  await act(async () => {
+    await secondSend!;
+  });
+
+  const awaitedFirst = firstSend;
+  expect(awaitedFirst).toBeDefined();
+  await awaitedFirst!;
+
+  expect(result.current.status).toBe("done");
+  expect(result.current.runId).toBe("run-2");
+  const roles = result.current.messages.map((m) => m.role);
+  expect(roles).toContain("user");
+  expect(roles).toContain("assistant");
+  const assistant = result.current.messages.find((m) => m.role === "assistant");
+  expect(assistant?.text).toBe("Hi");
 });
