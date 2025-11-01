@@ -23,7 +23,7 @@ export type ToolDefinition = {
   argsSchema?: Record<string, any>;
   responseSchema?: Record<string, any>;
   transport?: {
-    kind: "http" | "grpc" | "mcp" | "kafka" | "local";
+    kind: "http" | "grpc" | "mcp" | "kafka" | "local" | "engine";
     endpoint?: string;
     method?: string;
     headersTemplate?: Record<string, any>;
@@ -31,6 +31,7 @@ export type ToolDefinition = {
     responsePointer?: string;
     timeoutMsDefault?: number;
     retry?: { maxAttempts?: number; backoff?: "none" | "exponential" | "fixed"; initialDelayMs?: number };
+    toolId?: string;
   };
   approval?: { orgApproved?: boolean; riskTier?: "low" | "medium" | "high" };
   quotas?: { rateLimitPerMin?: number; burst?: number };

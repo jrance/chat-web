@@ -53,7 +53,7 @@ describe("ToolConfigPanel", () => {
       expect(screen.getByText(/Attached tools/i)).toBeDefined();
     });
 
-    it("should render tool dropdown with Web Search option", () => {
+    it("should render tool dropdown with DuckDuckGo Search option", () => {
       const graph = {
         nodes: [
           { id: "agent1", kind: "agent.codeless", data: {} }
@@ -70,13 +70,13 @@ describe("ToolConfigPanel", () => {
 
       // The dropdown doesn't have an accessible name, so we get it by position
       const dropdowns = container.querySelectorAll("select");
-      const toolDropdown = Array.from(dropdowns).find(el => 
-        el.querySelector('option[value="tool:web-search"]')
+      const toolDropdown = Array.from(dropdowns).find(el =>
+        el.querySelector('option[value="tool:ddgs.search"]')
       );
       expect(toolDropdown).toBeDefined();
-      
-      // Check that Web Search is in the options
-      const option = screen.getByRole("option", { name: /Web Search/i });
+
+      // Check that DuckDuckGo Search is in the options
+      const option = screen.getByRole("option", { name: /DuckDuckGo Search/i });
       expect(option).toBeDefined();
     });
   });
@@ -152,7 +152,7 @@ describe("ToolConfigPanel", () => {
   });
 
   describe("Attaching Tools", () => {
-    it("should add Web Search tool when selected from dropdown", () => {
+    it("should add DuckDuckGo Search tool when selected from dropdown", () => {
       const onGraphChange = vi.fn();
       const graph = {
         nodes: [
@@ -169,16 +169,16 @@ describe("ToolConfigPanel", () => {
       );
 
       const dropdowns = container.querySelectorAll("select");
-      const toolDropdown = Array.from(dropdowns).find(el => 
-        el.querySelector('option[value="tool:web-search"]')
+      const toolDropdown = Array.from(dropdowns).find(el =>
+        el.querySelector('option[value="tool:ddgs.search"]')
       ) as HTMLSelectElement;
 
-      fireEvent.change(toolDropdown, { target: { value: "tool:web-search" } });
+      fireEvent.change(toolDropdown, { target: { value: "tool:ddgs.search" } });
 
       // Component state should update but not call onGraphChange until Save
-      // Need to check that all "Web Search" instances are present (label shows multiple times)
-      const webSearchElements = screen.getAllByText(/Web Search/i);
-      expect(webSearchElements.length).toBeGreaterThan(0);
+      // Ensure the newly selected tool is rendered in the inspector
+      const ddgsElements = screen.getAllByText(/DuckDuckGo Search/i);
+      expect(ddgsElements.length).toBeGreaterThan(0);
     });
 
     it("should show Save button", () => {
@@ -207,9 +207,9 @@ describe("ToolConfigPanel", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
-            limit: { value: 10, visibility: "AgentOverride" }
+            maxResults: { value: 10, visibility: "AgentOverride" }
           }
         }
       };
@@ -236,10 +236,10 @@ describe("ToolConfigPanel", () => {
         />
       );
 
-      // Multiple instances of "Web Search" text exist (dropdown + attached tool)
-      const webSearchElements = screen.getAllByText(/Web Search/i);
-      expect(webSearchElements.length).toBeGreaterThan(0);
-      expect(screen.getByText(/1\.0\.0/i)).toBeDefined();
+      // Multiple instances of the tool label exist (dropdown + attached tool)
+      const ddgsElements = screen.getAllByText(/DuckDuckGo Search/i);
+      expect(ddgsElements.length).toBeGreaterThan(0);
+      expect(screen.getByText(/0\.1\.0/i)).toBeDefined();
     });
 
     it("should allow removing attached tool", () => {
@@ -247,7 +247,7 @@ describe("ToolConfigPanel", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {}
         }
       };
@@ -280,7 +280,7 @@ describe("ToolConfigPanel", () => {
       fireEvent.click(removeButton);
 
       // Tool should be removed from local state (not in the document anymore after re-render)
-      expect(screen.queryByText(/Web Search.*1\.0\.0/)).toBeNull();
+      expect(screen.queryByText(/DuckDuckGo Search.*0\.1\.0/)).toBeNull();
     });
   });
 
@@ -290,10 +290,11 @@ describe("ToolConfigPanel", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
             query: { value: "", visibility: "Normal" },
-            limit: { value: 5, visibility: "AgentOverride" }
+            maxResults: { value: 5, visibility: "AgentOverride" },
+            siteFilter: { value: ["reuters.com"], visibility: "AgentOverride" }
           }
         }
       };
@@ -320,13 +321,17 @@ describe("ToolConfigPanel", () => {
         />
       );
 
-      // Check for parameter labels from Web Search schema
-      expect(screen.getByText(/Query/i)).toBeDefined();
-      expect(screen.getByText(/Max Results/i)).toBeDefined();
-      // "Safe Search" appears twice (label and checkbox label), so use getAllByText
-      const safeSearchElements = screen.getAllByText(/Safe Search/i);
-      expect(safeSearchElements.length).toBeGreaterThan(0);
-      expect(screen.getByText(/API Key Ref/i)).toBeDefined();
+      // Check for parameter labels from DDGS schema
+      expect(screen.getByText(/Search query/i)).toBeDefined();
+      expect(screen.getByText(/Vertical/i)).toBeDefined();
+      expect(screen.getByText(/Max results/i)).toBeDefined();
+      expect(screen.getByText(/Safe search/i)).toBeDefined();
+      expect(screen.getByText(/Region/i)).toBeDefined();
+      expect(screen.getByText(/Freshness window/i)).toBeDefined();
+      expect(screen.getByText(/Site filter/i)).toBeDefined();
+      expect(screen.getByText(/Must include terms/i)).toBeDefined();
+      expect(screen.getByText("reuters.com")).toBeDefined();
+      expect(screen.getByRole("button", { name: /Add/i })).toBeDefined();
     });
 
     it("should show visibility dropdowns for parameters", () => {
@@ -334,9 +339,9 @@ describe("ToolConfigPanel", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
-            limit: { value: 5, visibility: "AgentOverride" }
+            maxResults: { value: 5, visibility: "AgentOverride" }
           }
         }
       };
@@ -422,11 +427,11 @@ describe("ToolConfigPanel", () => {
 
       // Add a tool
       const dropdowns = container.querySelectorAll("select");
-      const toolDropdown = Array.from(dropdowns).find(el => 
-        el.querySelector('option[value="tool:web-search"]')
+      const toolDropdown = Array.from(dropdowns).find(el =>
+        el.querySelector('option[value="tool:ddgs.search"]')
       ) as HTMLSelectElement;
-      
-      fireEvent.change(toolDropdown, { target: { value: "tool:web-search" } });
+
+      fireEvent.change(toolDropdown, { target: { value: "tool:ddgs.search" } });
 
       // Click Save
       const saveButton = screen.getByRole("button", { name: /Save/i });

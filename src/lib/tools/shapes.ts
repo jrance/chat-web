@@ -2,13 +2,14 @@ export type Visibility = "Normal" | "LLMHidden" | "AgentOverride";
 
 export type ArgSchema =
   | { kind: "string"; name: string; label?: string; placeholder?: string; visibility?: Visibility; enum?: string[]; multiline?: boolean; required?: boolean }
+  | { kind: "string[]"; name: string; label?: string; placeholder?: string; visibility?: Visibility }
   | { kind: "number"; name: string; label?: string; min?: number; max?: number; step?: number; visibility?: Visibility; required?: boolean }
   | { kind: "boolean"; name: string; label?: string; visibility?: Visibility }
   | { kind: "object"; name: string; label?: string; properties: ArgSchema[]; visibility?: Visibility }
   ;
 
 export type ToolMeta = {
-  toolId: string;               // e.g., "tool:web-search"
+  toolId: string;               // e.g., "tool:ddgs.search"
   name: string;
   version?: string;
   summary?: string;

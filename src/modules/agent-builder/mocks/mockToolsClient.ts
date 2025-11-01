@@ -17,19 +17,30 @@ const MOCK_TOOLS: ToolDefinition[] = [
     description: "Searches the enterprise policy KB",
   },
   {
-    id: "tool:web-search",
-    name: "Web Search",
-    version: "1.4.3",
+    id: "tool:ddgs.search",
+    name: "DuckDuckGo Search",
+    version: "0.1.0",
     category: "search",
-    auth: { type: "api_key", scopes: ["web.search"] },
-    transport: { kind: "http", endpoint: "https://search.example.com/query" },
+    auth: { type: "none" },
+    transport: { kind: "engine", toolId: "tool:ddgs.search" },
     parameters: [
       { name: "query", type: "string", description: "Search query", scope: "AgentOverride", default: "" },
-      { name: "region", type: "enum", enum: ["us", "eu"], default: "us", scope: "OrgLocked" },
-      { name: "topK", type: "number", default: 3, min: 1, max: 10, scope: "AgentOverride" },
+      { name: "vertical", type: "enum", enum: ["web", "news", "wikipedia"], default: "web", scope: "AgentOverride" },
+      { name: "maxResults", type: "number", default: 5, min: 1, max: 50, scope: "AgentOverride" },
+      { name: "safesearch", type: "enum", enum: ["off", "moderate", "strict"], default: "moderate", scope: "AgentOverride" },
+      {
+        name: "region",
+        type: "enum",
+        enum: ["us-en", "uk-en", "wt-wt", "de-de", "fr-fr", "es-es", "it-it", "nl-nl", "in-en", "jp-jp"],
+        default: "us-en",
+        scope: "OrgLocked"
+      },
+      { name: "timeLimit", type: "enum", enum: ["", "d", "w", "m", "y"], default: "", scope: "AgentOverride" },
+      { name: "siteFilter", type: "array<string>", default: [], scope: "AgentOverride" },
+      { name: "mustInclude", type: "array<string>", default: [], scope: "AgentOverride" }
     ],
     status: "active",
-    description: "Performs a web search against the enterprise provider",
+    description: "Keyless search across DuckDuckGo verticals.",
   },
   {
     id: "tool:sharepoint",

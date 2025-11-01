@@ -28,8 +28,8 @@ test("send streams assistant deltas and tool results", async () => {
     { type: "response.output_text.delta", delta: "Hel" },
     { type: "response.output_text.delta", delta: "lo" },
     { type: "response.output_text.done" },
-    { type: "response.tool_result.created", name: "web-search", call_id: "call-1" },
-    { type: "response.tool_result.done", name: "web-search", call_id: "call-1", result: { hits: 3 } },
+    { type: "response.tool_result.created", name: "ddgs.search", call_id: "call-1" },
+    { type: "response.tool_result.done", name: "ddgs.search", call_id: "call-1", result: { hits: 3 } },
     { type: "response.completed", status: "completed" },
   ]);
 
@@ -53,7 +53,7 @@ test("send streams assistant deltas and tool results", async () => {
   expect(assistant?.text).toBe("Hello");
   expect(assistant?.done).toBe(true);
   expect(tool?.role).toBe("tool");
-  expect(tool?.tool).toMatchObject({ name: "web-search", result: { hits: 3 } });
+  expect(tool?.tool).toMatchObject({ name: "ddgs.search", result: { hits: 3 } });
   expect(tool?.done).toBe(true);
 });
 

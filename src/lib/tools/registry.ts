@@ -1,7 +1,7 @@
 import type { ToolMeta } from "./shapes";
-import webSearch from "./builtins/webSearch.meta";
+import ddgs from "./builtins/ddgs.meta";
 
-const ALL: ToolMeta[] = [webSearch];
+const ALL: ToolMeta[] = [ddgs];
 
 export function listTools(): ToolMeta[] { return ALL.slice(); }
 export function getToolById(toolId: string): ToolMeta | undefined { return ALL.find(t => t.toolId === toolId); }

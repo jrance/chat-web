@@ -1,6 +1,6 @@
 export type ToolParameter = {
   name: string;
-  type: "string" | "number" | "boolean" | "enum";
+  type: "string" | "number" | "boolean" | "enum" | "array<string>" | "array<number>";
   default?: any;
   description?: string;
   scope: "AgentOverride" | "OrgLocked" | "LLMHidden";
@@ -15,7 +15,7 @@ export type ToolDefinition = {
   version: string;
   category?: string;
   auth?: { type?: string; scopes?: string[] };
-  transport?: { kind: string; endpoint?: string };
+  transport?: { kind: string; endpoint?: string; toolId?: string; [key: string]: any };
   parameters?: ToolParameter[];
   status?: "active" | "deprecated" | "retired" | string;
   description?: string;

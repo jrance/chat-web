@@ -303,7 +303,9 @@ function graphRules(ir: IRGraph, toolsIndex?: Record<string, any>): ValidationIs
                 (t === "string" && typeof v === "string") ||
                 (t === "number" && typeof v === "number") ||
                 (t === "boolean" && typeof v === "boolean") ||
-                (t === "enum" && typeof v === "string" && (!p.enum || p.enum.includes(v)));
+                (t === "enum" && typeof v === "string" && (!p.enum || p.enum.includes(v))) ||
+                (t === "array<string>" && Array.isArray(v) && v.every((item) => typeof item === "string")) ||
+                (t === "array<number>" && Array.isArray(v) && v.every((item) => typeof item === "number"));
               if (!typeOk) list.push({ path: `/nodes/${n.id}/data/parameterOverrides/${key}`, message: `Invalid override type/value for ${key}`, severity: "error" });
               if (t === "number") {
                 if ((p.min != null && v < p.min) || (p.max != null && v > p.max)) {

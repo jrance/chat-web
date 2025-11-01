@@ -33,10 +33,10 @@ describe("IR Transform Tools", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
-            limit: { value: 10, visibility: "AgentOverride" },
-            apiKeyRef: { value: "secrets/search-api", visibility: "LLMHidden" }
+            maxResults: { value: 10, visibility: "AgentOverride" },
+            siteFilter: { value: ["example.com"], visibility: "AgentOverride" }
           }
         }
       };
@@ -54,9 +54,9 @@ describe("IR Transform Tools", () => {
       const bindings = readAgentToolsFromIR(agentNode, [agentNode, toolNode]);
       expect(bindings).toHaveLength(1);
       expect(bindings[0].toolNodeId).toBe("tool1");
-      expect(bindings[0].toolId).toBe("tool:web-search");
-      expect(bindings[0].overrides.limit).toEqual({ value: 10, visibility: "AgentOverride" });
-      expect(bindings[0].overrides.apiKeyRef).toEqual({ value: "secrets/search-api", visibility: "LLMHidden" });
+      expect(bindings[0].toolId).toBe("tool:ddgs.search");
+      expect(bindings[0].overrides.maxResults).toEqual({ value: 10, visibility: "AgentOverride" });
+      expect(bindings[0].overrides.siteFilter).toEqual({ value: ["example.com"], visibility: "AgentOverride" });
     });
 
     it("should use default values from metadata when not overridden", () => {
@@ -64,7 +64,7 @@ describe("IR Transform Tools", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {}
         }
       };
@@ -81,9 +81,12 @@ describe("IR Transform Tools", () => {
 
       const bindings = readAgentToolsFromIR(agentNode, [agentNode, toolNode]);
       expect(bindings).toHaveLength(1);
-      expect(bindings[0].overrides.limit?.value).toBe(5); // default from webSearch.meta
-      expect(bindings[0].overrides.safeSearch?.value).toBe(true); // default from webSearch.meta
-      expect(bindings[0].overrides.recency?.value).toBe("30d"); // default from webSearch.meta
+      expect(bindings[0].overrides.maxResults?.value).toBe(5); // default from ddgs.meta
+      expect(bindings[0].overrides.safesearch?.value).toBe("moderate");
+      expect(bindings[0].overrides.region?.value).toBe("us-en");
+      expect(bindings[0].overrides.timeLimit?.value).toBe("");
+      expect(bindings[0].overrides.siteFilter?.value).toEqual([]);
+      expect(bindings[0].overrides.mustInclude?.value).toEqual([]);
     });
 
     it("should handle missing tool node", () => {
@@ -119,11 +122,11 @@ describe("IR Transform Tools", () => {
       const bindings: AgentToolBinding[] = [
         {
           toolNodeId: "tool1",
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           overrides: {
             query: { value: "", visibility: "Normal" },
-            limit: { value: 10, visibility: "AgentOverride" },
-            apiKeyRef: { value: "secrets/search-api", visibility: "LLMHidden" }
+            maxResults: { value: 10, visibility: "AgentOverride" },
+            safesearch: { value: "strict", visibility: "AgentOverride" }
           }
         }
       ];
@@ -135,11 +138,11 @@ describe("IR Transform Tools", () => {
       
       const toolNode = nodes.find((n) => n.id === "tool1");
       expect(toolNode).toBeDefined();
-      expect(toolNode?.data?.toolId).toBe("tool:web-search");
+      expect(toolNode?.data?.toolId).toBe("tool:ddgs.search");
       expect(toolNode?.data?.parameterOverrides).toEqual({
         query: { value: "", visibility: "Normal" },
-        limit: { value: 10, visibility: "AgentOverride" },
-        apiKeyRef: { value: "secrets/search-api", visibility: "LLMHidden" }
+        maxResults: { value: 10, visibility: "AgentOverride" },
+        safesearch: { value: "strict", visibility: "AgentOverride" }
       });
     });
 
@@ -158,9 +161,9 @@ describe("IR Transform Tools", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
-            limit: { value: 5, visibility: "Normal" }
+            maxResults: { value: 5, visibility: "Normal" }
           }
         }
       };
@@ -168,10 +171,10 @@ describe("IR Transform Tools", () => {
       const bindings: AgentToolBinding[] = [
         {
           toolNodeId: "tool1",
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           overrides: {
-            limit: { value: 20, visibility: "AgentOverride" },
-            safeSearch: { value: false, visibility: "AgentOverride" }
+            maxResults: { value: 20, visibility: "AgentOverride" },
+            safesearch: { value: "off", visibility: "AgentOverride" }
           }
         }
       ];
@@ -179,8 +182,8 @@ describe("IR Transform Tools", () => {
       const { node, nodes } = writeAgentToolsToIR(agentNode, [agentNode, existingToolNode], bindings);
 
       const toolNode = nodes.find((n) => n.id === "tool1");
-      expect(toolNode?.data?.parameterOverrides.limit).toEqual({ value: 20, visibility: "AgentOverride" });
-      expect(toolNode?.data?.parameterOverrides.safeSearch).toEqual({ value: false, visibility: "AgentOverride" });
+      expect(toolNode?.data?.parameterOverrides.maxResults).toEqual({ value: 20, visibility: "AgentOverride" });
+      expect(toolNode?.data?.parameterOverrides.safesearch).toEqual({ value: "off", visibility: "AgentOverride" });
     });
 
     it("should preserve unrelated nodes", () => {
@@ -190,9 +193,9 @@ describe("IR Transform Tools", () => {
       const bindings: AgentToolBinding[] = [
         {
           toolNodeId: "tool1",
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           overrides: {
-            limit: { value: 10, visibility: "Normal" }
+            maxResults: { value: 10, visibility: "Normal" }
           }
         }
       ];
@@ -227,12 +230,12 @@ describe("IR Transform Tools", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
             query: { value: "test query", visibility: "Normal" },
-            limit: { value: 15, visibility: "AgentOverride" },
-            site: { value: "example.com", visibility: "AgentOverride" },
-            apiKeyRef: { value: "secrets/key", visibility: "LLMHidden" }
+            maxResults: { value: 15, visibility: "AgentOverride" },
+            siteFilter: { value: ["example.com"], visibility: "AgentOverride" },
+            mustInclude: { value: ["breaking"], visibility: "AgentOverride" }
           }
         }
       };
@@ -258,17 +261,18 @@ describe("IR Transform Tools", () => {
       // Verify - the write will include all fields from the binding (which includes defaults)
       const updatedToolNode = updatedNodes.find((n) => n.id === "tool1");
       expect(updatedAgent.data.tools.attached).toEqual(["tool1"]);
-      
+
       // Check that the explicitly set values are preserved
       expect(updatedToolNode?.data?.parameterOverrides.query).toEqual({ value: "test query", visibility: "Normal" });
-      expect(updatedToolNode?.data?.parameterOverrides.limit).toEqual({ value: 15, visibility: "AgentOverride" });
-      expect(updatedToolNode?.data?.parameterOverrides.site).toEqual({ value: "example.com", visibility: "AgentOverride" });
-      expect(updatedToolNode?.data?.parameterOverrides.apiKeyRef).toEqual({ value: "secrets/key", visibility: "LLMHidden" });
-      
+      expect(updatedToolNode?.data?.parameterOverrides.maxResults).toEqual({ value: 15, visibility: "AgentOverride" });
+      expect(updatedToolNode?.data?.parameterOverrides.siteFilter).toEqual({ value: ["example.com"], visibility: "AgentOverride" });
+      expect(updatedToolNode?.data?.parameterOverrides.mustInclude).toEqual({ value: ["breaking"], visibility: "AgentOverride" });
+
       // The read operation will have filled in defaults for other fields
       // so the write will include them too (this is expected behavior)
-      expect(updatedToolNode?.data?.parameterOverrides.recency).toBeDefined();
-      expect(updatedToolNode?.data?.parameterOverrides.safeSearch).toBeDefined();
+      expect(updatedToolNode?.data?.parameterOverrides.safesearch).toBeDefined();
+      expect(updatedToolNode?.data?.parameterOverrides.timeLimit).toBeDefined();
+      expect(updatedToolNode?.data?.parameterOverrides.region).toBeDefined();
     });
 
     it("should handle modifications during round-trip", () => {
@@ -276,9 +280,9 @@ describe("IR Transform Tools", () => {
         id: "tool1",
         kind: "tool",
         data: {
-          toolId: "tool:web-search",
+          toolId: "tool:ddgs.search",
           parameterOverrides: {
-            limit: { value: 5, visibility: "Normal" }
+            maxResults: { value: 5, visibility: "Normal" }
           }
         }
       };
@@ -299,16 +303,16 @@ describe("IR Transform Tools", () => {
       const bindings = readAgentToolsFromIR(agentNode, allNodes);
 
       // Modify
-      bindings[0].overrides.limit = { value: 20, visibility: "AgentOverride" };
-      bindings[0].overrides.safeSearch = { value: false, visibility: "AgentOverride" };
+      bindings[0].overrides.maxResults = { value: 20, visibility: "AgentOverride" };
+      bindings[0].overrides.safesearch = { value: "strict", visibility: "AgentOverride" };
 
       // Write
       const { nodes: updatedNodes } = writeAgentToolsToIR(agentNode, allNodes, bindings);
 
       // Verify changes
       const updatedToolNode = updatedNodes.find((n) => n.id === "tool1");
-      expect(updatedToolNode?.data?.parameterOverrides.limit).toEqual({ value: 20, visibility: "AgentOverride" });
-      expect(updatedToolNode?.data?.parameterOverrides.safeSearch).toEqual({ value: false, visibility: "AgentOverride" });
+      expect(updatedToolNode?.data?.parameterOverrides.maxResults).toEqual({ value: 20, visibility: "AgentOverride" });
+      expect(updatedToolNode?.data?.parameterOverrides.safesearch).toEqual({ value: "strict", visibility: "AgentOverride" });
     });
   });
 });
