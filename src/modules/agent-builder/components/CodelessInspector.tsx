@@ -6,12 +6,13 @@ import { useToolsCatalog } from "../hooks/useToolsCatalog";
 import { useTool } from "../hooks/useTool";
 import { fetchModels, fetchProviders } from "../config/modelRegistry";
 import { v4 as uuidv4 } from "uuid";
+import AgentMcpAttach from "../../../features/inspector/AgentMcpAttach";
 
 export default function CodelessInspector({ nodeId }: { nodeId: string }) {
   const { state, dispatch } = useAgentBuilder();
   const { computeIssues } = useValidation();
   const node = state.ir.nodes.find((n) => n.id === nodeId && n.kind === "agent.codeless") as any;
-  const [tab, setTab] = useState<"Basics" | "Instructions" | "Model" | "Context" | "Tools" | "Structured" | "Safety" | "Telemetry" | "Validation">("Basics");
+  const [tab, setTab] = useState<"Basics" | "Instructions" | "Model" | "Context" | "Tools" | "MCP" | "Structured" | "Safety" | "Telemetry" | "Validation">("Basics");
   const [catalogOpen, setCatalogOpen] = useState(false);
   // bindings/param drawer removed
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -66,7 +67,7 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
   return (
     <div>
       <div className="ab-tabs" role="tablist" aria-label="Codeless agent inspector tabs">
-        {(["Basics", "Instructions", "Model", "Context", "Tools", "Structured", "Safety", "Telemetry", "Validation"] as const).map((t) => (
+        {(["Basics", "Instructions", "Model", "Context", "Tools", "MCP", "Structured", "Safety", "Telemetry", "Validation"] as const).map((t) => (
           <button key={t} className={`ab-tab ${tab === t ? "ab-tab--active" : ""}`} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>{t}</button>
         ))}
       </div>
@@ -644,6 +645,14 @@ export default function CodelessInspector({ nodeId }: { nodeId: string }) {
             </div>
           )}
         </div>
+      )}
+
+      {tab === "MCP" && (
+        <AgentMcpAttach 
+          graph={state.ir} 
+          agentId={nodeId} 
+          onGraphChange={(g) => dispatch({ type: "SET_GRAPH", ir: g })} 
+        />
       )}
 
       {tab === "Structured" && (
