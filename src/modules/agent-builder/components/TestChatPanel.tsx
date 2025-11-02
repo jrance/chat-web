@@ -287,6 +287,15 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           border: none;
           padding-inline: 1.1rem;
           box-shadow: 0 18px 40px -26px rgba(37, 99, 235, 0.7);
+          position: absolute;
+          bottom: 8px;
+          right: 12px;
+          min-height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.45rem 1.1rem;
+          border-radius: 14px;
         }
 
         .ab-testchat__send:hover:not(:disabled) {
@@ -528,6 +537,8 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           max-width: min(100%, 720px);
           margin: 0 auto;
           box-sizing: border-box;
+          position: relative;
+          padding-bottom: 48px;
         }
 
         .ab-testchat__input {
@@ -540,6 +551,7 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           font-size: 0.95rem;
           line-height: 1.6;
           font-family: inherit;
+          padding-right: 140px;
         }
 
         .ab-testchat__input:focus {
@@ -552,6 +564,15 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
 
         .ab-testchat__input:disabled {
           color: var(--ab-chat-muted);
+        }
+
+        .ab-testchat__composer-hint {
+          position: absolute;
+          bottom: 12px;
+          left: 18px;
+          font-size: 0.75rem;
+          color: var(--ab-chat-muted);
+          letter-spacing: 0.02em;
         }
 
         .ab-testchat__usage,

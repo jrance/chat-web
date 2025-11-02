@@ -73,10 +73,11 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
   }, [messages]);
 
   const handleSend = useCallback(() => {
-    if (!canRun || !input.trim()) {
+    const trimmed = input.trim();
+    if (!canRun || !trimmed) {
       return;
     }
-    send(ir, input, buildHeaders(tenantId, authToken, telemetryLevel));
+    send(ir, trimmed, buildHeaders(tenantId, authToken, telemetryLevel));
     setInput("");
   }, [authToken, canRun, input, ir, send, tenantId, telemetryLevel]);
 
@@ -193,15 +194,16 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
                 placeholder={status === "paused" ? "Run paused by engine." : "Type a prompt and press Send."}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                    event.preventDefault();
-                    handleSend();
-                  }
-                }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  handleSend();
+                }
+              }}
                 disabled={status === "running" || !canRun}
                 className="ab-testchat__input"
               />
+              <div className="ab-testchat__composer-hint">Enter to send / Shift+Enter for newline</div>
               <button className="ab-testchat__button ab-testchat__send" onClick={handleSend} disabled={!canSend}>
                 {status === "running" ? "Streaming..." : "Send"}
               </button>
