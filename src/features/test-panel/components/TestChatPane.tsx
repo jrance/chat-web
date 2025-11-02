@@ -13,6 +13,8 @@ type TestChatPaneProps = {
   baseUrl: string;
   autoFocus?: boolean;
   canRun: boolean;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 };
 
 type InnerProps = TestChatPaneProps & {
@@ -44,7 +46,17 @@ export default function TestChatPane(props: TestChatPaneProps) {
   return <TestChatPaneInner key={sessionKey} {...props} onReset={handleReset} />;
 }
 
-function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun, onReset }: InnerProps) {
+function TestChatPaneInner({
+  ir,
+  tenantId,
+  authToken,
+  baseUrl,
+  autoFocus,
+  canRun,
+  isFullscreen,
+  onToggleFullscreen,
+  onReset,
+}: InnerProps) {
   const [input, setInput] = useState("");
   const [resumeBusy, setResumeBusy] = useState(false);
   const [telemetryLevel, setTelemetryLevel] = useState<TelemetryLevel>("none");
@@ -115,18 +127,91 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
   return (
     <div className="ab-testchat">
       <div className="ab-testchat__header">
-        <div className="ab-testchat__title-block">
-          <div className="ab-testchat__title">Test Chat</div>
-          <div className="ab-testchat__status" aria-live="polite">
-            <span>{statusLabel}</span>
-            {runId && <span className="ab-testchat__run">Run: {runId}</span>}
+        <div className="ab-testchat__head">
+          <div className="ab-testchat__head-top">
+            <div className="ab-testchat__title-block">
+              <div className="ab-testchat__title">Test Chat</div>
+              <div className="ab-testchat__status" aria-live="polite">
+                <span>{statusLabel}</span>
+                {runId && <span className="ab-testchat__run">Run: {runId}</span>}
+              </div>
+            </div>
+            <div className="ab-testchat__action-bar">
+              {onToggleFullscreen ? (
+                <button
+                  type="button"
+                  className="ab-testchat__icon-btn"
+                  onClick={onToggleFullscreen}
+                  aria-pressed={Boolean(isFullscreen)}
+                  title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen"}
+                >
+                  {isFullscreen ? (
+                    <svg className="ab-testchat__icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M4.5 4.5l7 7m0-7-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg className="ab-testchat__icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <path
+                        d="M3 6V3h3M10 3h3v3M3 10v3h3M13 10v3h-3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    </svg>
+                  )}
+                  <span className="ab-testchat__sr-only">{isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}</span>
+                </button>
+              ) : null}
+              <button
+                className="ab-testchat__icon-btn ab-testchat__icon-btn--ghost"
+                onClick={onReset}
+                disabled={status === "running" || messages.length === 0}
+                title="Clear conversation"
+              >
+                <svg className="ab-testchat__icon" viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M3.5 8h8.5M6.5 5.5L3.5 8l3 2.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </svg>
+                <span className="ab-testchat__sr-only">Clear conversation</span>
+              </button>
+              <button
+                className="ab-testchat__icon-btn ab-testchat__icon-btn--danger"
+                onClick={cancel}
+                disabled={status !== "running" && status !== "paused"}
+                title="Cancel run"
+              >
+                <svg className="ab-testchat__icon" viewBox="0 0 16 16" aria-hidden="true">
+                  <rect
+                    x="5"
+                    y="5"
+                    width="6"
+                    height="6"
+                    rx="1.2"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    fill="none"
+                  />
+                </svg>
+                <span className="ab-testchat__sr-only">Cancel run</span>
+              </button>
+            </div>
           </div>
-          <div className="ab-testchat__tabs" role="tablist" aria-label="Test chat views">
+        </div>
+        <div className="ab-testchat__tabs-row">
+          <div className="ab-tabs ab-testchat__tabs" role="tablist" aria-label="Test chat views">
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === "chat"}
-              className={`ab-testchat__tab ${activeTab === "chat" ? "ab-testchat__tab--active" : ""}`}
+              className={`ab-tab ${activeTab === "chat" ? "ab-tab--active" : ""}`}
               onClick={() => setActiveTab("chat")}
             >
               Conversation
@@ -135,37 +220,27 @@ function TestChatPaneInner({ ir, tenantId, authToken, baseUrl, autoFocus, canRun
               type="button"
               role="tab"
               aria-selected={activeTab === "telemetry"}
-              className={`ab-testchat__tab ${activeTab === "telemetry" ? "ab-testchat__tab--active" : ""}`}
+              className={`ab-tab ${activeTab === "telemetry" ? "ab-tab--active" : ""}`}
               onClick={() => setActiveTab("telemetry")}
             >
               Telemetry
             </button>
           </div>
-        </div>
-        <div className="ab-testchat__actions">
-          <label className="ab-testchat__telemetry" htmlFor={telemetryId}>
-            <span>Telemetry</span>
-            <select
-              id={telemetryId}
-              className="ab-testchat__select"
-              value={telemetryLevel}
-              onChange={(e) => setTelemetryLevel(e.target.value as TelemetryLevel)}
-            >
-              <option value="none">none</option>
-              <option value="basic">basic</option>
-              <option value="verbose">verbose</option>
-            </select>
-          </label>
-          <button
-            className="ab-testchat__button ab-testchat__button--ghost"
-            onClick={onReset}
-            disabled={status === "running" || messages.length === 0}
-          >
-            Clear
-          </button>
-          <button className="ab-testchat__button" onClick={cancel} disabled={status !== "running" && status !== "paused"}>
-            Cancel
-          </button>
+          <div className="ab-testchat__tabs-telemetry">
+            <label className="ab-testchat__telemetry" htmlFor={telemetryId}>
+              <span className="ab-testchat__telemetry-label">Telemetry</span>
+              <select
+                id={telemetryId}
+                className="ab-testchat__select"
+                value={telemetryLevel}
+                onChange={(e) => setTelemetryLevel(e.target.value as TelemetryLevel)}
+              >
+                <option value="none">none</option>
+                <option value="basic">basic</option>
+                <option value="verbose">verbose</option>
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 

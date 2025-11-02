@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import TestChatPane from "../../../features/test-panel/components/TestChatPane";
 import { API_BASE, DEFAULT_TENANT_ID, ORCH_AUTH_TOKEN } from "../../../app/config";
 import { useAgentStudio } from "../providers/AgentStudioProvider";
@@ -10,13 +11,32 @@ type Props = {
 export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
   const { state } = useAgentBuilder();
   const { tenantId: studioTenantId } = useAgentStudio();
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const tenantId: string =
     (typeof state.ir?.meta?.tenantId === "string" && state.ir.meta.tenantId) || studioTenantId || DEFAULT_TENANT_ID;
   const canRun = Boolean(state.ir?.nodes?.length);
 
+  useEffect(() => {
+    if (!isFullscreen) {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isFullscreen]);
+
   return (
-    <div className="ab-testchat__container">
+    <div className={`ab-testchat__container${isFullscreen ? " ab-testchat__container--fullscreen" : ""}`}>
       <TestChatPane
         ir={state.ir}
         tenantId={tenantId}
@@ -24,6 +44,8 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
         baseUrl={API_BASE}
         autoFocus={autoFocus}
         canRun={canRun}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={() => setIsFullscreen((full) => !full)}
       />
       <style>{`
         .ab-testchat__container,
@@ -33,6 +55,23 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           height: 100%;
           min-height: 0;
           box-sizing: border-box;
+        }
+
+        .ab-testchat__container {
+          position: relative;
+          width: 100%;
+        }
+
+        .ab-testchat__container--fullscreen {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          padding: max(24px, 3vh);
+          background: rgba(6, 9, 17, 0.92);
+          backdrop-filter: blur(12px);
+          display: flex;
+          justify-content: center;
+          align-items: center;
         }
 
         .ab-testchat {
@@ -70,6 +109,13 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           box-sizing: border-box;
           background: var(--ab-chat-bg);
           color: var(--ab-chat-strong);
+        }
+
+        .ab-testchat__container--fullscreen .ab-testchat {
+          height: calc(100vh - max(48px, 6vh));
+          max-width: min(1280px, 96vw);
+          width: 100%;
+          border-radius: 28px;
         }
 
         .ab-testchat *,
@@ -136,9 +182,8 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
 
         .ab-testchat__header {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
+          flex-direction: column;
+          gap: 14px;
           background: var(--ab-chat-surface);
           border: 1px solid var(--ab-chat-border);
           border-radius: 18px;
@@ -146,10 +191,32 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           box-shadow: var(--ab-chat-shadow);
         }
 
+        .ab-testchat__container--fullscreen .ab-testchat__header {
+          border-radius: 22px;
+          padding: 20px 24px;
+        }
+
+        .ab-testchat__head {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .ab-testchat__head-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+
+
         .ab-testchat__title-block {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          flex: 1 1 280px;
+          min-width: 0;
         }
 
         .ab-testchat__title {
@@ -165,58 +232,50 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           gap: 2px;
         }
 
-        .ab-testchat__tabs {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding-top: 6px;
-          flex-wrap: wrap;
-        }
-
-        .ab-testchat__tab {
-          border: 1px solid transparent;
-          background: transparent;
-          color: var(--ab-chat-muted);
-          font-size: 0.78rem;
-          font-weight: 600;
-          padding: 0.35rem 0.9rem;
-          border-radius: 999px;
-          cursor: pointer;
-          transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-        }
-
-        .ab-testchat__tab:not(:disabled):hover {
-          color: var(--ab-chat-strong);
-        }
-
-        .ab-testchat__tab--active {
-          background: rgba(37, 99, 235, 0.12);
-          color: var(--ab-chat-strong);
-          border-color: rgba(37, 99, 235, 0.3);
-          box-shadow: 0 12px 30px -22px rgba(37, 99, 235, 0.4);
-        }
-
-        .ab-testchat__tab:disabled {
-          opacity: 0.45;
-          cursor: not-allowed;
-        }
-
         .ab-testchat__run {
           font-family: "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
           font-size: 0.7rem;
         }
 
-        .ab-testchat__actions {
+        .ab-testchat__action-bar {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          flex: 0 0 auto;
+          flex-wrap: nowrap;
+        }
+
+        .ab-testchat__telemetry {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.75rem;
+          color: var(--ab-chat-muted);
+        }
+
+        .ab-testchat__tabs-row {
           display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 12px;
           flex-wrap: wrap;
         }
 
-        .ab-testchat__telemetry {
-          display: flex;
+        .ab-testchat__tabs {
+          flex: 1 1 auto;
+          min-width: 0;
+          margin: 4px 0 0;
+          border-bottom-color: var(--ab-chat-border);
+        }
+
+        .ab-testchat__tabs-telemetry {
+          display: inline-flex;
           align-items: center;
           gap: 8px;
+          flex: 0 0 auto;
+        }
+
+        .ab-testchat__telemetry-label {
           font-size: 0.75rem;
           color: var(--ab-chat-muted);
         }
@@ -233,6 +292,7 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           cursor: pointer;
           box-shadow: 0 12px 30px -24px rgba(15, 23, 42, 0.45);
           transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+          max-width: 100%;
           background-image: linear-gradient(45deg, transparent 50%, var(--ab-chat-muted) 50%), linear-gradient(135deg, var(--ab-chat-muted) 50%, transparent 50%);
           background-position: calc(100% - 16px) calc(50% - 3px), calc(100% - 11px) calc(50% - 3px);
           background-size: 6px 6px, 6px 6px;
@@ -250,6 +310,70 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
           border-color: rgba(37, 99, 235, 0.5);
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
+
+        .ab-testchat__icon-btn {
+          width: 34px;
+          height: 34px;
+          border-radius: 12px;
+          border: 1px solid var(--ab-chat-border);
+          background: var(--ab-chat-surface-strong);
+          color: var(--ab-chat-strong);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.9rem;
+          box-shadow: 0 12px 30px -24px rgba(15, 23, 42, 0.45);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+        }
+
+        .ab-testchat__icon-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 18px 38px -26px rgba(37, 99, 235, 0.5);
+        }
+
+        .ab-testchat__icon-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+
+        .ab-testchat__icon-btn--ghost {
+          background: transparent;
+          color: var(--ab-chat-muted);
+        }
+
+        .ab-testchat__icon-btn--ghost:hover:not(:disabled) {
+          color: var(--ab-chat-strong);
+        }
+
+        .ab-testchat__icon-btn--danger {
+          background: rgba(239, 68, 68, 0.16);
+          color: #ef4444;
+          border-color: rgba(239, 68, 68, 0.45);
+        }
+
+        .ab-testchat__icon-btn--danger:hover:not(:disabled) {
+          box-shadow: 0 20px 42px -28px rgba(239, 68, 68, 0.55);
+        }
+
+        .ab-testchat__icon {
+          width: 16px;
+          height: 16px;
+          display: block;
+        }
+
+        .ab-testchat__sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+
 
         .ab-testchat__button {
           border-radius: 12px;
@@ -838,20 +962,25 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
             padding: 12px;
           }
           .ab-testchat__header {
+            gap: 12px;
+          }
+          .ab-testchat__head-top {
+            gap: 12px;
+          }
+          .ab-testchat__action-bar {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+          }
+          .ab-testchat__tabs-row {
             flex-direction: column;
-            align-items: flex-start;
-            gap: 14px;
+            align-items: stretch;
+            gap: 8px;
           }
           .ab-testchat__tabs {
             width: 100%;
           }
-          .ab-testchat__actions {
+          .ab-testchat__tabs-telemetry {
             width: 100%;
-            justify-content: flex-start;
-            align-items: stretch;
-            gap: 8px;
-          }
-          .ab-testchat__telemetry {
             justify-content: space-between;
           }
           .ab-testchat__composer {
@@ -859,6 +988,35 @@ export default function TestChatPanel({ autoFocus }: Props = {}): JSX.Element {
             align-items: stretch;
           }
           .ab-testchat__send {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 540px) {
+          .ab-testchat__action-bar {
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+          }
+          .ab-testchat__telemetry {
+            gap: 6px;
+            width: 100%;
+            justify-content: space-between;
+          }
+          .ab-testchat__tabs-telemetry {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+          }
+          .ab-testchat__icon-btn {
+            width: 100%;
+          }
+          .ab-testchat__select {
+            width: 100%;
+            padding-right: 36px;
+          }
+          .ab-testchat__button {
             width: 100%;
             justify-content: center;
           }
