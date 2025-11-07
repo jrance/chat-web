@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest run --coverage",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@rjsf/core": "^5.24.13",
@@ -32,9 +33,11 @@
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.2",
     "@vitejs/plugin-react": "^4.3.2",
+    "@vitest/coverage-v8": "^4.0.7",
     "jsdom": "^27.1.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.3",
-    "vitest": "^4.0.5"
+    "vitest": "^4.0.5",
+    "zod": "^3.23.8"
   }
 }
