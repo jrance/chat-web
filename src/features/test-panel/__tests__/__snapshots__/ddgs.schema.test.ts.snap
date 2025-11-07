@@ -1,5 +1,112 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`DDGS tool catalog entry > matches snapshot 1`] = `
+{
+  "auth": {
+    "type": "none",
+  },
+  "category": "search",
+  "description": "Free, keyless search via DuckDuckGo (ddgs). Supports web, news, and Wikipedia-only queries.",
+  "id": "tool:ddgs.search",
+  "name": "DuckDuckGo Search",
+  "parameters": [
+    {
+      "default": "",
+      "description": "Search query",
+      "name": "query",
+      "scope": "AgentOverride",
+      "type": "string",
+    },
+    {
+      "default": "web",
+      "description": "Search vertical. 'wikipedia' is implemented via site:wikipedia.org filter on web.",
+      "enum": [
+        "web",
+        "news",
+        "wikipedia",
+      ],
+      "name": "vertical",
+      "scope": "AgentOverride",
+      "type": "enum",
+    },
+    {
+      "default": 5,
+      "description": "Maximum number of results to return.",
+      "max": 50,
+      "min": 1,
+      "name": "maxResults",
+      "scope": "AgentOverride",
+      "type": "number",
+    },
+    {
+      "default": "moderate",
+      "description": "Content filtering level.",
+      "enum": [
+        "off",
+        "moderate",
+        "strict",
+      ],
+      "name": "safesearch",
+      "scope": "AgentOverride",
+      "type": "enum",
+    },
+    {
+      "default": "us-en",
+      "description": "Region/language targeting (DDG region code).",
+      "enum": [
+        "us-en",
+        "uk-en",
+        "wt-wt",
+        "de-de",
+        "fr-fr",
+        "es-es",
+        "it-it",
+        "nl-nl",
+        "in-en",
+        "jp-jp",
+      ],
+      "name": "region",
+      "scope": "OrgLocked",
+      "type": "enum",
+    },
+    {
+      "default": "",
+      "description": "Freshness filter: d=day, w=week, m=month, y=year; empty means no limit.",
+      "enum": [
+        "",
+        "d",
+        "w",
+        "m",
+        "y",
+      ],
+      "name": "timeLimit",
+      "scope": "AgentOverride",
+      "type": "enum",
+    },
+    {
+      "default": [],
+      "description": "Restrict search to these hostnames (e.g., ['reuters.com','apnews.com']).",
+      "name": "siteFilter",
+      "scope": "AgentOverride",
+      "type": "array<string>",
+    },
+    {
+      "default": [],
+      "description": "Discard results that do not include these terms in title/snippet.",
+      "name": "mustInclude",
+      "scope": "AgentOverride",
+      "type": "array<string>",
+    },
+  ],
+  "status": "active",
+  "transport": {
+    "kind": "engine",
+    "toolId": "tool:ddgs.search",
+  },
+  "version": "0.1.0",
+}
+`;
+
 exports[`DDGS tool catalog entry matches snapshot 1`] = `
 Object {
   "auth": Object {
@@ -106,4 +213,3 @@ Object {
   "version": "0.1.0",
 }
 `;
-
