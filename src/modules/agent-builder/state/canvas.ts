@@ -2,6 +2,7 @@ import {
   IR_VERSION,
   type BasicType,
   type Edge,
+  type EdgeMapping,
   type GraphDoc,
   type Id,
   type NodeAny,
@@ -176,3 +177,7 @@ export function resetSelection(state: CanvasState): CanvasState {
   return { ...state, selection: null };
 }
 
+export function updateEdgeMappings(state: CanvasState, edgeId: Id, mappings: EdgeMapping[]): CanvasState {
+  const edges = state.doc.edges.map((edge) => (edge.id === edgeId ? { ...edge, mappings } : edge));
+  return { ...state, doc: { ...state.doc, edges } };
+}

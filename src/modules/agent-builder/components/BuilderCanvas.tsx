@@ -13,11 +13,13 @@ import {
   checkPortCompat,
   connect,
   createEmptyDoc,
+  getNode,
   moveNode,
   removeEdge,
   removeNode,
   resetSelection,
   setPending,
+  updateEdgeMappings,
   updateNode,
   type CanvasState,
   type Point,
@@ -34,6 +36,8 @@ import {
   SequentialCard,
 } from "./NodeCard";
 import type { Compat } from "../state/canvas";
+import { MapperDrawer } from "./MapperDrawer";
+import { buildNodeOutputPreview } from "../lib/preview";
 
 type Props = {
   initial?: GraphDoc;
@@ -216,9 +220,13 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
     );
 
     const pendingFrom = state.pendingConnection?.from;
+    const selectedEdge = state.selection?.edgeId
+      ? state.doc.edges.find((edge) => edge.id === state.selection?.edgeId)
+      : undefined;
+    const mapperPreview = selectedEdge ? buildNodeOutputPreview(getNode(state.doc, selectedEdge.from.nodeId)) : undefined;
 
     return (
-      <div className="ab-canvas" style={{ width, height }} aria-label="Builder canvas">
+      <div className={`ab-canvas${selectedEdge ? " ab-canvas--drawer-open" : ""}`} style={{ width, height }} aria-label="Builder canvas">
         {nodeCards.map(({ node, ui }) => {
           const inputs = node.inputs ?? [];
           const outputs = node.outputs ?? [];
@@ -334,6 +342,18 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
           </button>
           <span>Connect ports to create edges.</span>
         </div>
+
+        {selectedEdge ? (
+          <MapperDrawer
+            doc={state.doc}
+            edgeId={selectedEdge.id}
+            upstreamPreview={mapperPreview}
+            onChange={(next) =>
+              setState((prev) => updateEdgeMappings(prev, selectedEdge.id, next))
+            }
+            onClose={() => setState((prev) => resetSelection(prev))}
+          />
+        ) : null}
       </div>
     );
   },
