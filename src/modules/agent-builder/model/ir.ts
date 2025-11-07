@@ -216,11 +216,13 @@ export interface EntryFormNode extends BaseNode {
   ];
 }
 
+export type ToolRef = { toolId: string; variantId?: string };
+
 export interface AgentNode extends BaseNode {
   kind: "agent";
   config: {
     model?: string;
-    allowedTools?: string[];
+    allowedTools?: ToolRef[];
     structuredOutput?: { name?: string; schema?: JsonSchema };
     historyWindow?: { type: "tokens" | "messages"; max: number };
   };

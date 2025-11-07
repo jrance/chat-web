@@ -1,5 +1,7 @@
 import React from "react";
 import type { AgentNode, InputPort } from "../../model/ir";
+import { DefaultToolRegistry } from "../../registry/tools.default";
+import { AgentToolsPicker } from "../Tools/AgentToolsPicker";
 
 type Props = {
   node: AgentNode;
@@ -48,21 +50,10 @@ export const AgentCard: React.FC<Props> = ({ node, onChange }) => {
         <input className="ab-input" type="text" value={config.model ?? ""} placeholder="gpt-4o-mini" onChange={(e) => updateConfig("model", e.target.value)} />
       </label>
 
-      <label className="ab-label">
-        Allowed Tools (comma separated)
-        <input
-          className="ab-input"
-          type="text"
-          value={(config.allowedTools ?? []).join(", ")}
-          onChange={(e) => {
-            const parts = e.target.value
-              .split(",")
-              .map((p) => p.trim())
-              .filter(Boolean);
-            updateConfig("allowedTools", parts);
-          }}
-        />
-      </label>
+      <div className="ab-divider" />
+
+      <h4>Tools</h4>
+      <AgentToolsPicker node={node} onChange={onChange} registry={DefaultToolRegistry} />
 
       <div className="ab-field ab-field--row">
         <label>

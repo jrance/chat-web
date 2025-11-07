@@ -85,9 +85,9 @@ describe("canvas state helpers", () => {
 
   it("updates node configs immutably", () => {
     let state = addNode(makeState(), agentNode(), { x: 0, y: 0 });
-    const updated = { ...state.doc.nodes[0], config: { allowedTools: ["sharepoint.upload"] } } as AgentNode;
+    const updated = { ...state.doc.nodes[0], config: { allowedTools: [{ toolId: "sharepoint.upload" }] } } as AgentNode;
     state = updateNode(state, updated);
-    expect((state.doc.nodes[0] as AgentNode).config.allowedTools).toEqual(["sharepoint.upload"]);
+    expect((state.doc.nodes[0] as AgentNode).config.allowedTools).toEqual([{ toolId: "sharepoint.upload" }]);
   });
 
   it("connects compatible ports and blocks invalid combos", () => {

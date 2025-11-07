@@ -570,6 +570,68 @@
   margin-top: 8px;
 }
 
+.ab-tools-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.ab-tools-search {
+  display: flex;
+  gap: 8px;
+}
+
+.ab-tools-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.ab-tool {
+  border: 1px solid var(--ab-line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--ab-card);
+}
+
+.ab-tool.is-selected {
+  outline: 2px solid #2563eb;
+}
+
+.ab-tool-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ab-tool-title {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.ab-tool-id {
+  opacity: 0.7;
+  margin-left: 8px;
+}
+
+.ab-tool-desc {
+  font-size: 13px;
+  opacity: 0.9;
+  margin: 6px 0 10px;
+}
+
+.ab-tool-schema {
+  margin-top: 8px;
+}
+
+.ab-schema-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .ab-divider {
   height: 1px;
   background: var(--ab-line);
