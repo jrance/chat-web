@@ -38,6 +38,8 @@ import {
 import type { Compat } from "../state/canvas";
 import { MapperDrawer } from "./MapperDrawer";
 import { buildNodeOutputPreview } from "../lib/preview";
+import { BranchWireWizard } from "./Wizard/BranchWireWizard";
+import { addEdges } from "../state/graph_ops";
 
 type Props = {
   initial?: GraphDoc;
@@ -75,7 +77,12 @@ function buildInitialState(doc?: GraphDoc): CanvasState {
   return { doc: base, ui, selection: null };
 }
 
-function renderConfig(node: NodeAny, onChange: (n: NodeAny) => void): React.ReactNode {
+function renderConfig(
+  node: NodeAny,
+  onChange: (n: NodeAny) => void,
+  allNodes: NodeAny[],
+  openWireWizard: (parentId: Id) => void,
+): React.ReactNode {
   switch (node.kind) {
     case "entry.form":
       return <EntryCard node={node} onChange={onChange} />;
@@ -88,7 +95,14 @@ function renderConfig(node: NodeAny, onChange: (n: NodeAny) => void): React.Reac
     case "parallel.items":
       return <ParallelItemsCard node={node} onChange={onChange} />;
     case "parallel.branches":
-      return <ParallelBranchesCard node={node} onChange={onChange} />;
+      return (
+        <ParallelBranchesCard
+          node={node}
+          onChange={onChange}
+          allNodes={allNodes}
+          onOpenWireWizard={openWireWizard}
+        />
+      );
     case "reducer":
       return <ReducerCard node={node} onChange={onChange} />;
     case "publisher":
@@ -134,6 +148,7 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
   ({ initial, width = 1600, height = 1000, onEdgeSelected }, ref) => {
     const [state, setState] = useState<CanvasState>(() => buildInitialState(initial));
     const [drag, setDrag] = useState<{ id: Id; offset: Point } | null>(null);
+    const [wireWizardParent, setWireWizardParent] = useState<Id | null>(null);
 
     useEffect(() => {
       if (initial) {
@@ -194,6 +209,13 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
       setState((prev) => updateNode(prev, nextNode));
     };
 
+    const handleWireWizardOpen = (parentId: Id) => {
+      setWireWizardParent(parentId);
+      setState((prev) => resetSelection(prev));
+    };
+
+    const handleWireWizardClose = () => setWireWizardParent(null);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -224,9 +246,10 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
       ? state.doc.edges.find((edge) => edge.id === state.selection?.edgeId)
       : undefined;
     const mapperPreview = selectedEdge ? buildNodeOutputPreview(getNode(state.doc, selectedEdge.from.nodeId)) : undefined;
+    const isDrawerOpen = Boolean(selectedEdge || wireWizardParent);
 
     return (
-      <div className={`ab-canvas${selectedEdge ? " ab-canvas--drawer-open" : ""}`} style={{ width, height }} aria-label="Builder canvas">
+      <div className={`ab-canvas${isDrawerOpen ? " ab-canvas--drawer-open" : ""}`} style={{ width, height }} aria-label="Builder canvas">
         {nodeCards.map(({ node, ui }) => {
           const inputs = node.inputs ?? [];
           const outputs = node.outputs ?? [];
@@ -305,6 +328,8 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
                 {renderConfig(
                   node,
                   (next) => handleNodeChange(next as NodeAny),
+                  state.doc.nodes,
+                  handleWireWizardOpen,
                 )}
               </div>
             </div>
@@ -352,6 +377,18 @@ export const BuilderCanvas = forwardRef<BuilderCanvasHandle, Props>(
               setState((prev) => updateEdgeMappings(prev, selectedEdge.id, next))
             }
             onClose={() => setState((prev) => resetSelection(prev))}
+          />
+        ) : null}
+
+        {wireWizardParent ? (
+          <BranchWireWizard
+            doc={state.doc}
+            parentId={wireWizardParent}
+            onApply={(edges) => {
+              setState((prev) => addEdges(prev, edges));
+              handleWireWizardClose();
+            }}
+            onClose={handleWireWizardClose}
           />
         ) : null}
       </div>

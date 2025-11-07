@@ -222,6 +222,46 @@
   color: var(--ab-text-subtle);
 }
 
+.ab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.ab-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ab-checkline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ab-note {
+  font-size: 12px;
+  color: var(--ab-text-subtle);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.ab-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ab-grid-2--tight {
+  gap: 6px;
+}
+
 .ab-canvas--drawer-open {
   padding-right: 520px;
   box-sizing: border-box;
@@ -229,6 +269,44 @@
 
 .ab-canvas--drawer-open .ab-edge-list {
   right: 540px;
+}
+
+/* Branch Wire Wizard */
+.ab-wizard {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 520px;
+  height: 100%;
+  background: var(--ab-card);
+  border-left: 1px solid var(--ab-line);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--ab-shadow-sm);
+}
+
+.ab-wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ab-line);
+}
+
+.ab-wizard-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+}
+
+.ab-wizard-actions {
+  padding: 8px 12px;
+  border-top: 1px solid var(--ab-line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* Mapper Drawer */
