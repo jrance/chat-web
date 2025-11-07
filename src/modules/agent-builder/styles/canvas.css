@@ -637,3 +637,34 @@
   background: var(--ab-line);
   margin: 8px 0;
 }
+
+.ab-exporter {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  display: grid;
+}
+
+.ab-exporter-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ab-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ab-exporter-body {
+  padding: 8px 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.ab-list {
+  margin: 0;
+  padding-left: 18px;
+}
