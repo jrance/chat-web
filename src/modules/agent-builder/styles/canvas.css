@@ -452,3 +452,48 @@
   gap: 6px;
   align-items: center;
 }
+
+/* Parallel Simulator */
+.ab-sim {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--ab-line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--ab-card);
+}
+
+.ab-sim-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ab-sim-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  gap: 12px;
+  font-size: 14px;
+}
+
+.ab-sim-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ab-sim-log {
+  max-height: 160px;
+  overflow: auto;
+}
+
+.ab-sim-wrap {
+  margin-top: 8px;
+}
+
+.ab-divider {
+  height: 1px;
+  background: var(--ab-line);
+  margin: 8px 0;
+}

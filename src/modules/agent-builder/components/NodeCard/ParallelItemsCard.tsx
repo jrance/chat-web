@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import type { ParallelItemsNode } from "../../model/ir";
+import { ParallelItemsSimulator } from "../Simulator/ParallelItemsSimulator";
 
 type Props = {
   node: ParallelItemsNode;
@@ -8,6 +9,7 @@ type Props = {
 
 export const ParallelItemsCard: React.FC<Props> = ({ node, onChange }) => {
   const config = node.config;
+  const [showSim, setShowSim] = useState(false);
   return (
     <div className="ab-card">
       <label className="ab-label">
@@ -48,7 +50,18 @@ export const ParallelItemsCard: React.FC<Props> = ({ node, onChange }) => {
           onChange={(e) => onChange({ ...node, config: { ...config, itemPort: e.target.value } })}
         />
       </label>
+
+      <div className="ab-divider" />
+
+      <button type="button" className="ab-btn" onClick={() => setShowSim((v) => !v)}>
+        {showSim ? "Hide" : "Open"} Concurrency Simulator
+      </button>
+
+      {showSim && (
+        <div className="ab-sim-wrap">
+          <ParallelItemsSimulator defaultConcurrency={config.concurrency} workerId={config.workerId} />
+        </div>
+      )}
     </div>
   );
 };
-
